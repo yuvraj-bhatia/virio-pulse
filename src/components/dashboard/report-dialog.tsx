@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Download, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WeeklyReportPayload } from "@/types";
 
@@ -114,9 +114,9 @@ export function ReportDialog({ clientId, range }: Props): JSX.Element {
             </TabsList>
           </Tabs>
 
-          <div className="glass-card rounded-xl p-4">
+          <div className="glass-card rounded-2xl p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-semibold">Report history</h4>
+              <h4 className="text-sm font-semibold text-[#f2dbb0]">Report history</h4>
               <Button variant="ghost" size="sm" onClick={() => void loadHistory()} disabled={isRefreshing || !clientId}>
                 {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
@@ -129,7 +129,7 @@ export function ReportDialog({ clientId, range }: Props): JSX.Element {
                 {reports.map((report) => (
                   <div
                     key={report.id}
-                    className="rounded-lg border border-border/70 bg-[#0f1116cc] p-3 transition-colors hover:border-[#dcb26877]"
+                    className="rounded-xl border border-[#dcb2683e] bg-[linear-gradient(180deg,rgba(15,17,22,0.84),rgba(12,16,20,0.92))] p-3 transition-all duration-300 ease-virio hover:border-[#dcb26877]"
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">

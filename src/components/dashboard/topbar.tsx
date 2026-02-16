@@ -65,7 +65,8 @@ export function Topbar({ clients }: TopbarProps): JSX.Element {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/60 bg-[#0e1015d9] px-4 py-3 backdrop-blur-xl md:px-6">
+    <header className="sticky top-0 z-30 border-b border-[#dcb26833] bg-[linear-gradient(180deg,rgba(13,16,22,0.92),rgba(13,16,22,0.74))] px-4 py-3 backdrop-blur-2xl md:px-6 relative">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(220,178,104,0.45),transparent)]" />
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={effectiveClientId ?? undefined} onValueChange={(value) => updateQuery("clientId", value)}>
@@ -96,9 +97,9 @@ export function Topbar({ clients }: TopbarProps): JSX.Element {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-lg border border-[#dcb26844] bg-[#dcb2681f] px-3 py-2 lg:flex">
+          <div className="hidden items-center gap-2 rounded-xl border border-[#dcb26844] bg-[linear-gradient(180deg,rgba(220,178,104,0.16),rgba(220,178,104,0.08))] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)] lg:flex">
             <CalendarClock className="h-4 w-4 text-[#e4c17f]" />
-            <span className="text-xs text-muted-foreground">{selectedClient?.name ?? "No client selected"}</span>
+            <span className="text-xs text-[#e0d5bf]">{selectedClient?.name ?? "No client selected"}</span>
           </div>
           <ReportDialog clientId={effectiveClientId} range={selectedRange} />
         </div>
@@ -111,7 +112,7 @@ export function Topbar({ clients }: TopbarProps): JSX.Element {
             className={
               pathname.startsWith(item.href)
                 ? "rounded-full border border-[#dcb26888] bg-[#dcb26822] px-3 py-1 text-xs text-[#f4d6a3]"
-                : "rounded-full border border-border/80 bg-[#12151b] px-3 py-1 text-xs text-muted-foreground"
+                : "rounded-full border border-[#dcb2682b] bg-[#11151b] px-3 py-1 text-xs text-muted-foreground"
             }
           >
             {item.label}

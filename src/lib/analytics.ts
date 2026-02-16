@@ -354,6 +354,7 @@ export async function getContentData(window: AnalyticsWindow, filters: ContentFi
     id: post.id,
     clientId: post.clientId,
     executiveId: post.executiveId,
+    postUrl: post.postUrl,
     executiveName: post.executive.name,
     postedAt: post.postedAt,
     format: post.format,

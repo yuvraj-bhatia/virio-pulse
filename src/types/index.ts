@@ -78,6 +78,7 @@ export type ContentListItem = {
   id: string;
   clientId: string;
   executiveId: string;
+  postUrl: string | null;
   executiveName: string;
   postedAt: Date;
   format: PostFormat;

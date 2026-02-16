@@ -9,10 +9,10 @@ type FunnelChartProps = {
 };
 
 const labels = [
-  { key: "inboundSignals", label: "Inbound signals", color: "bg-[#3a6e7480]" },
-  { key: "meetingsHeld", label: "Meetings held", color: "bg-[#7f771f8a]" },
-  { key: "opportunitiesCreated", label: "Opportunities", color: "bg-[#dcb26899]" },
-  { key: "closedWon", label: "Closed won", color: "bg-[#df551f8c]" }
+  { key: "inboundSignals", label: "Inbound signals", gradient: "linear-gradient(90deg,#3a6e74,#4d8f97)" },
+  { key: "meetingsHeld", label: "Meetings held", gradient: "linear-gradient(90deg,#7f771f,#b3a945)" },
+  { key: "opportunitiesCreated", label: "Opportunities", gradient: "linear-gradient(90deg,#dcb268,#f1cd88)" },
+  { key: "closedWon", label: "Closed won", gradient: "linear-gradient(90deg,#df551f,#f2875e)" }
 ] as const;
 
 export function FunnelChart({ data }: FunnelChartProps): JSX.Element {
@@ -21,25 +21,26 @@ export function FunnelChart({ data }: FunnelChartProps): JSX.Element {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm text-muted-foreground">Pipeline Funnel</CardTitle>
+        <CardTitle className="text-sm text-[#d2bb8d]">Pipeline Funnel</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {labels.map((item) => {
           const value = data[item.key];
           const width = Math.max(8, Math.round((value / max) * 100));
           return (
-            <div key={item.key} className="space-y-1">
+            <div key={item.key} className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">{item.label}</span>
                 <span className="font-mono text-foreground">{value.toLocaleString("en-US")}</span>
               </div>
-              <div className="h-9 rounded-md border border-border/60 bg-[#0f1318] p-1">
+              <div className="h-9 rounded-lg border border-[#dcb2683a] bg-[linear-gradient(180deg,rgba(13,17,23,0.85),rgba(10,14,20,0.92))] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div
-                  className={cn(
-                    "h-full rounded-sm transition-all duration-700 ease-float",
-                    item.color
-                  )}
-                  style={{ width: `${width}%` }}
+                  className={cn("h-full rounded-md transition-all duration-700 ease-float")}
+                  style={{
+                    width: `${width}%`,
+                    background: item.gradient,
+                    boxShadow: "0 0 14px rgba(220,178,104,0.2)"
+                  }}
                 />
               </div>
             </div>

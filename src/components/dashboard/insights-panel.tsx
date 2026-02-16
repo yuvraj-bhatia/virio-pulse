@@ -52,7 +52,7 @@ export function InsightsPanel({ clientId, range }: InsightsPanelProps): JSX.Elem
   return (
     <Card className="section-glow">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="text-sm text-muted-foreground">Recommendations</CardTitle>
+        <CardTitle className="text-sm text-[#d2bb8d]">Recommendations</CardTitle>
         <div className="flex items-center gap-2">
           {data?.usingHeuristics ? <Badge variant="outline">Using heuristics</Badge> : null}
           <Button variant="outline" size="sm" onClick={() => void loadInsights()} disabled={loading}>
@@ -75,7 +75,10 @@ export function InsightsPanel({ clientId, range }: InsightsPanelProps): JSX.Elem
         ) : (
           <ul className="space-y-2 text-sm">
             {data?.items.map((item) => (
-              <li key={item} className="rounded-lg border border-border/60 bg-[#101319cc] p-3 leading-relaxed">
+              <li
+                key={item}
+                className="rounded-xl border border-[#dcb26835] bg-[linear-gradient(90deg,rgba(220,178,104,0.08),rgba(58,110,116,0.05),rgba(13,16,22,0.82))] p-3 leading-relaxed"
+              >
                 {item}
               </li>
             ))}

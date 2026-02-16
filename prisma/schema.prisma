@@ -98,6 +98,7 @@ model ContentPost {
   id          String      @id @default(cuid())
   clientId    String
   executiveId String
+  postUrl     String?
   postedAt    DateTime
   format      PostFormat
   theme       String
@@ -119,6 +120,7 @@ model ContentPost {
   @@index([clientId, postedAt])
   @@index([theme])
   @@index([executiveId, postedAt])
+  @@unique([clientId, postUrl])
 }
 
 model InboundSignal {
@@ -127,9 +129,9 @@ model InboundSignal {
   postId        String?
   executiveId   String?
   source        InboundSource
-  personName    String
-  company       String
-  title         String
+  personName    String?
+  company       String?
+  title         String?
   entryPointUrl String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt

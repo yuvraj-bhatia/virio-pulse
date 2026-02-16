@@ -28,7 +28,7 @@ export default async function PipelinePage({
         description="Inspect content-influenced funnel progression from inbound to closed-won revenue."
       />
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="stagger-in grid grid-cols-1 gap-4 lg:grid-cols-2">
         <FunnelChart data={data.funnel} />
         <StageChart data={data.stageDistribution} />
       </section>

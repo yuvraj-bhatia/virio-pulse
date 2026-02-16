@@ -40,7 +40,7 @@ export default async function OverviewPage({
         description="Track how executive-led content influences pipeline and closed-won outcomes."
       />
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="stagger-in grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <KpiCard label="Meetings Influenced" value={data.kpis.meetingsInfluenced.toLocaleString("en-US")} trend="up" hint="active" />
         <KpiCard label="Pipeline Created" value={toCurrency(data.kpis.pipelineCreated)} trend="up" hint="growing" />
         <KpiCard label="Revenue Won" value={toCurrency(data.kpis.revenueWon)} trend="up" hint="won" />
@@ -48,7 +48,7 @@ export default async function OverviewPage({
         <KpiCard label="Meeting-to-Win" value={toPercent(data.kpis.meetingToWinRate)} trend="neutral" hint="win rate" />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <section className="stagger-in grid grid-cols-1 gap-4 xl:grid-cols-2">
         <TimeSeriesChart
           title="Revenue Won Over Time"
           data={chartData}
