@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --virio-offwhite: #fff9ec;
+  --virio-white: #ffffff;
+  --virio-black: #1b1b18;
+  --virio-yellow: #dcb268;
+  --virio-red: #df551f;
+  --virio-blue: #3a6e74;
+  --virio-darkgreen: #4d5143;
+  --virio-vividgreen: #7f771f;
+  --virio-lightgray: rgba(229, 229, 224, 0.3);
+  --virio-transparent-black: rgba(51, 52, 47, 0.5);
+  --virio-stroke-gradient: linear-gradient(154deg, #dcb268 0%, #4b4d45 82%);
+  --virio-blue-gradient:
+    radial-gradient(circle at 50% 50%, rgba(58, 110, 116, 0.5) 0%, rgba(58, 110, 116, 0.35) 43%, rgba(58, 110, 116, 0.05) 81%, rgba(58, 110, 116, 0) 100%);
+  --virio-gold-gradient:
+    radial-gradient(circle at 50% 50%, rgba(220, 178, 104, 0.8) 0%, rgba(220, 178, 104, 0.6) 43%, rgba(220, 178, 104, 0.2) 81%, rgba(220, 178, 104, 0) 100%);
+  --background: 220 17% 7%;
+  --foreground: 45 40% 92%;
+  --card: 226 19% 10%;
+  --card-foreground: 45 40% 92%;
+  --popover: 226 19% 11%;
+  --popover-foreground: 45 40% 92%;
+  --primary: 40 61% 64%;
+  --primary-foreground: 223 20% 8%;
+  --secondary: 195 25% 32%;
+  --secondary-foreground: 48 40% 92%;
+  --muted: 220 16% 17%;
+  --muted-foreground: 45 15% 72%;
+  --accent: 193 29% 36%;
+  --accent-foreground: 50 25% 95%;
+  --destructive: 17 74% 50%;
+  --destructive-foreground: 45 30% 95%;
+  --border: 40 22% 28%;
+  --input: 224 19% 14%;
+  --ring: 40 52% 60%;
+}
+
+* {
+  border-color: hsl(var(--border));
+  scrollbar-width: thin;
+  scrollbar-color: rgba(220, 178, 104, 0.3) transparent;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  text-rendering: geometricPrecision;
+  background-image:
+    radial-gradient(circle at 8% 6%, rgba(220, 178, 104, 0.16), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(58, 110, 116, 0.2), transparent 38%),
+    radial-gradient(circle at 58% 90%, rgba(127, 119, 31, 0.12), transparent 40%),
+    linear-gradient(180deg, #12120f 0%, #0f1218 65%, #0f1114 100%);
+}
+
+a,
+button {
+  @apply transition-all duration-300 ease-virio;
+}
+
+.glass-card {
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01));
+  border: 1px solid rgba(220, 178, 104, 0.2);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 32px 80px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.glass-card:hover {
+  border-color: rgba(220, 178, 104, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(220, 178, 104, 0.3),
+    0 34px 90px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.section-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.section-glow::before {
+  content: "";
+  position: absolute;
+  inset: -60px;
+  background: var(--virio-blue-gradient);
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.gold-accent::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: -1;
+  background: var(--virio-gold-gradient);
+  filter: blur(16px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.page-enter {
+  animation: revealUp 0.8s cubic-bezier(0.5, 0, 0, 1) both;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(220, 178, 104, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

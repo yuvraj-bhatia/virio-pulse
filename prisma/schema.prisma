@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum PostFormat {
+  post
+  thread
+  carousel
+}
+
+enum CtaType {
+  book_call
+  dm
+  none
+}
+
+enum PostStatus {
+  draft
+  scheduled
+  posted
+}
+
+enum InboundSource {
+  linkedin_comment
+  linkedin_dm
+  website
+  referral
+}
+
+enum MeetingOutcome {
+  held
+  no_show
+  rescheduled
+}
+
+enum MeetingType {
+  discovery
+  demo
+  exec
+}
+
+enum OpportunityStage {
+  qualified
+  proposal
+  negotiation
+  closed_won
+  closed_lost
+}
+
+enum AttributionConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ReportViewMode {
+  internal
+  client_safe
+}
+
+model Client {
+  id         String        @id @default(cuid())
+  name       String
+  domain     String
+  vertical   String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  executives Executive[]
+  posts      ContentPost[]
+  inbounds   InboundSignal[]
+  meetings   Meeting[]
+  opportunities Opportunity[]
+  reports    Report[]
+  setting    AppSetting?
+}
+
+model Executive {
+  id             String          @id @default(cuid())
+  clientId       String
+  name           String
+  role           String
+  linkedinHandle String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  posts          ContentPost[]
+  inbounds       InboundSignal[]
+
+  @@index([clientId])
+}
+
+model ContentPost {
+  id          String      @id @default(cuid())
+  clientId    String
+  executiveId String
+  postedAt    DateTime
+  format      PostFormat
+  theme       String
+  hook        String
+  body        String
+  impressions Int
+  likes       Int
+  comments    Int
+  shares      Int
+  ctaType     CtaType
+  status      PostStatus
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  executive   Executive   @relation(fields: [executiveId], references: [id], onDelete: Cascade)
+  inbounds    InboundSignal[]
+
+  @@index([clientId, postedAt])
+  @@index([theme])
+  @@index([executiveId, postedAt])
+}
+
+model InboundSignal {
+  id            String         @id @default(cuid())
+  clientId      String
+  postId        String?
+  executiveId   String?
+  source        InboundSource
+  personName    String
+  company       String
+  title         String
+  entryPointUrl String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  post          ContentPost?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+  executive     Executive?     @relation(fields: [executiveId], references: [id], onDelete: SetNull)
+  meetings      Meeting[]
+
+  @@index([clientId, createdAt])
+  @@index([postId])
+  @@index([executiveId])
+}
+
+model Meeting {
+  id          String         @id @default(cuid())
+  clientId    String
+  inboundId   String?
+  scheduledAt DateTime
+  outcome     MeetingOutcome
+  meetingType MeetingType
+  notes       String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  inbound     InboundSignal? @relation(fields: [inboundId], references: [id], onDelete: SetNull)
+  opportunities Opportunity[]
+
+  @@index([clientId, scheduledAt])
+  @@index([inboundId])
+}
+
+model Opportunity {
+  id         String           @id @default(cuid())
+  clientId   String
+  meetingId  String?
+  stage      OpportunityStage
+  amount     Int
+  createdAt  DateTime         @default(now())
+  closedAt   DateTime?
+  updatedAt  DateTime         @updatedAt
+
+  client     Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  meeting    Meeting?         @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, stage])
+  @@index([clientId, createdAt])
+  @@index([meetingId])
+}
+
+model Report {
+  id          String         @id @default(cuid())
+  clientId    String
+  rangePreset String
+  startDate   DateTime
+  endDate     DateTime
+  viewMode    ReportViewMode
+  markdown    String
+  createdAt   DateTime       @default(now())
+
+  client      Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+}
+
+model AppSetting {
+  id                   String   @id @default(cuid())
+  clientId             String   @unique
+  attributionWindowDays Int     @default(7)
+  useSoftAttribution   Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  client               Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
