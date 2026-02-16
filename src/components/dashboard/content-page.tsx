@@ -1,12 +1,13 @@
 "use client";
 
 import { CtaType, InboundSource, PostFormat } from "@prisma/client";
-import { Loader2, Plus, Upload } from "lucide-react";
+import { Link2, Loader2, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { ImportUrlsModal, type ImportUrlsResult } from "@/components/dashboard/import-urls-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ type ContentPageProps = {
   clientId: string;
   range: "7" | "30" | "90";
   executives: ExecutiveOption[];
+  initialDataMode: "sample" | "real";
 };
 
 type DraftForm = {
@@ -342,7 +344,7 @@ function parseImportCsv(content: string): {
   return { rows, preview, errors };
 }
 
-export function ContentPage({ clientId, range, executives }: ContentPageProps): JSX.Element {
+export function ContentPage({ clientId, range, executives, initialDataMode }: ContentPageProps): JSX.Element {
   const router = useRouter();
 
   const [theme, setTheme] = useState<string>("all");
@@ -377,6 +379,8 @@ export function ContentPage({ clientId, range, executives }: ContentPageProps): 
   const [importRows, setImportRows] = useState<ImportPayloadRow[]>([]);
   const [importPreviewRows, setImportPreviewRows] = useState<ImportPreviewRow[]>([]);
   const [importValidationErrors, setImportValidationErrors] = useState<string[]>([]);
+  const [importUrlsOpen, setImportUrlsOpen] = useState(false);
+  const [dataMode, setDataMode] = useState<"sample" | "real">(initialDataMode);
 
   const [inboundOpen, setInboundOpen] = useState(false);
   const [savingInbound, setSavingInbound] = useState(false);
@@ -572,6 +576,7 @@ export function ContentPage({ clientId, range, executives }: ContentPageProps): 
       setImportOpen(false);
       resetImportState();
       await fetchPosts();
+      setDataMode("real");
       router.refresh();
       setToast({ message: `Imported ${imported} posts`, tone: "success" });
     } catch (error) {
@@ -582,6 +587,22 @@ export function ContentPage({ clientId, range, executives }: ContentPageProps): 
       setImporting(false);
     }
   };
+
+  const onUrlsImported = useCallback(
+    async (result: ImportUrlsResult): Promise<void> => {
+      await fetchPosts();
+      setDataMode("real");
+      router.refresh();
+
+      const toastMessage =
+        result.skippedDuplicates > 0
+          ? `Imported ${result.imported} posts. Skipped ${result.skippedDuplicates} duplicates`
+          : `Imported ${result.imported} posts`;
+
+      setToast({ message: toastMessage, tone: "success" });
+    },
+    [fetchPosts, router]
+  );
 
   const onInboundSubmit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -651,18 +672,43 @@ export function ContentPage({ clientId, range, executives }: ContentPageProps): 
 
   return (
     <div className="space-y-4">
-      <div className="glass-card flex flex-col gap-3 rounded-xl border border-[#dcb26855] bg-[#dcb26812] p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[#f2d5a5]">Sample data loaded</p>
-          <p className="text-xs text-muted-foreground">
-            Replace seeded posts with your real LinkedIn exports to evaluate true content-to-revenue signals.
-          </p>
+      {dataMode === "sample" ? (
+        <div className="glass-card flex flex-col gap-3 rounded-xl border border-[#dcb26855] bg-[#dcb26812] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#f2d5a5]">Sample data loaded</p>
+            <p className="text-xs text-muted-foreground">
+              Replace seeded posts with your real LinkedIn exports to evaluate true content-to-revenue signals.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import your posts
+            </Button>
+            <Button variant="outline" onClick={() => setImportUrlsOpen(true)}>
+              <Link2 className="mr-2 h-4 w-4" />
+              Import URLs
+            </Button>
+          </div>
         </div>
-        <Button variant="outline" onClick={() => setImportOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" />
-          Import your posts
-        </Button>
-      </div>
+      ) : (
+        <div className="glass-card flex flex-col gap-3 rounded-xl p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">Real data</Badge>
+            <p className="text-xs text-muted-foreground">This workspace is running on imported client data.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import CSV
+            </Button>
+            <Button variant="outline" onClick={() => setImportUrlsOpen(true)}>
+              <Link2 className="mr-2 h-4 w-4" />
+              Import URLs
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -733,7 +779,16 @@ export function ContentPage({ clientId, range, executives }: ContentPageProps): 
             Loading content...
           </div>
         ) : posts.length === 0 ? (
-          <EmptyState title="No content found" description="Try changing filters or date range." />
+          <EmptyState
+            title="No posts yet"
+            description="Import LinkedIn post URLs to start building a real attribution workspace."
+            action={(
+              <Button size="sm" onClick={() => setImportUrlsOpen(true)}>
+                <Link2 className="mr-2 h-4 w-4" />
+                Import URLs
+              </Button>
+            )}
+          />
         ) : (
           <Table>
             <TableHeader>
@@ -1026,6 +1081,13 @@ export function ContentPage({ clientId, range, executives }: ContentPageProps): 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportUrlsModal
+        open={importUrlsOpen}
+        onOpenChange={setImportUrlsOpen}
+        clientId={clientId}
+        onImported={onUrlsImported}
+      />
 
       <Dialog open={inboundOpen} onOpenChange={setInboundOpen}>
         <DialogContent className="max-w-2xl">

@@ -261,31 +261,40 @@ export async function getOverviewData(window: AnalyticsWindow): Promise<Overview
   }));
 
   const topPostsByRevenue = byPost.sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+  const hasAnyWorkspaceData =
+    dataset.postsInRange.length > 0 ||
+    dataset.inboundsInRange.length > 0 ||
+    dataset.meetingsInRange.length > 0 ||
+    dataset.opportunitiesInRange.length > 0;
 
-  const previousRangeStart = subDays(window.startDate, differenceInCalendarDays(window.endDate, window.startDate) + 1);
-  const previousRangeEnd = subDays(window.startDate, 1);
+  let whatChanged = "No data yet. Import posts and add inbound signals to start attribution.";
 
-  const previousOpps = await prisma.opportunity.findMany({
-    where: {
-      clientId: window.clientId,
-      createdAt: {
-        gte: previousRangeStart,
-        lte: previousRangeEnd
-      },
-      stage: OpportunityStage.closed_won
-    }
-  });
+  if (hasAnyWorkspaceData) {
+    const previousRangeStart = subDays(window.startDate, differenceInCalendarDays(window.endDate, window.startDate) + 1);
+    const previousRangeEnd = subDays(window.startDate, 1);
 
-  const previousRevenue = previousOpps.reduce((sum, opp) => sum + opp.amount, 0);
-  const delta = previousRevenue === 0 ? 1 : (revenueWon - previousRevenue) / previousRevenue;
-  const direction = delta >= 0 ? "up" : "down";
-  const changePercent = `${Math.abs(delta * 100).toFixed(1)}%`;
+    const previousOpps = await prisma.opportunity.findMany({
+      where: {
+        clientId: window.clientId,
+        createdAt: {
+          gte: previousRangeStart,
+          lte: previousRangeEnd
+        },
+        stage: OpportunityStage.closed_won
+      }
+    });
 
-  const whatChanged = `Revenue influence is ${direction} ${changePercent} versus the prior period. ${
-    revenueWon > pipelineCreated * 0.25
-      ? "Closed-won velocity improved; prioritize pricing and ROI narratives."
-      : "Pipeline is forming but win conversion is lagging; tighten qualification hooks."
-  }`;
+    const previousRevenue = previousOpps.reduce((sum, opp) => sum + opp.amount, 0);
+    const delta = previousRevenue === 0 ? 1 : (revenueWon - previousRevenue) / previousRevenue;
+    const direction = delta >= 0 ? "up" : "down";
+    const changePercent = `${Math.abs(delta * 100).toFixed(1)}%`;
+
+    whatChanged = `Revenue influence is ${direction} ${changePercent} versus the prior period. ${
+      revenueWon > pipelineCreated * 0.25
+        ? "Closed-won velocity improved; prioritize pricing and ROI narratives."
+        : "Pipeline is forming but win conversion is lagging; tighten qualification hooks."
+    }`;
+  }
 
   const themeMap = new Map<string, ThemePerformance>();
   for (const post of postedPosts) {

@@ -1,5 +1,6 @@
 import {
   AttributionConfidence,
+  ClientDataMode,
   CtaType,
   InboundSource,
   MeetingOutcome,
@@ -176,7 +177,8 @@ async function main(): Promise<void> {
       data: {
         name: seedClient.name,
         domain: seedClient.domain,
-        vertical: seedClient.vertical
+        vertical: seedClient.vertical,
+        dataMode: ClientDataMode.sample
       }
     });
 

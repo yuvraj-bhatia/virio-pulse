@@ -13,10 +13,12 @@ export default async function SettingsPage({
   const [clients, setting] = await Promise.all([
     prisma.client.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true, domain: true, vertical: true }
+      select: { id: true, name: true, domain: true, vertical: true, dataMode: true }
     }),
     prisma.appSetting.findUnique({ where: { clientId: context.clientId } })
   ]);
+
+  const activeClient = clients.find((client) => client.id === context.clientId);
 
   return (
     <div className="space-y-4">
@@ -26,7 +28,9 @@ export default async function SettingsPage({
       />
       <SettingsPanel
         clientId={context.clientId}
+        range={context.range}
         clients={clients}
+        initialDataMode={activeClient?.dataMode ?? "sample"}
         initialWindow={setting?.attributionWindowDays === 14 ? 14 : 7}
         initialSoftAttribution={setting?.useSoftAttribution ?? true}
       />

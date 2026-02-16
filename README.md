@@ -39,6 +39,7 @@ npm run db:seed    # seed 3 clients + full demo data
 npm run test       # attribution unit tests
 npm run dev        # local dev server
 npm run build      # production build validation
+npm run verify:client-isolation # validates clear/reset only affect target client
 ```
 
 ## Environment Variables
@@ -68,6 +69,9 @@ INSIGHTS_AI_MODEL="gpt-4o-mini"
 - Settings:
   - Attribution window (7/14)
   - Soft attribution toggle
+  - Clear workspace data (per client)
+  - Reset to sample data (per client)
+  - Sample vs Real data mode tracking per client
 
 ## 2-5 Minute Demo Flow
 

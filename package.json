@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "prisma generate && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:setup": "mkdir -p prisma && touch prisma/dev.db && prisma generate && prisma db push --skip-generate",
     "db:seed": "tsx prisma/seed.ts",
+    "verify:client-isolation": "tsx scripts/verify-client-isolation.ts",
     "test": "vitest run"
   },
   "dependencies": {

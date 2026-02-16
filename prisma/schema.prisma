@@ -63,11 +63,17 @@ enum ReportViewMode {
   client_safe
 }
 
+enum ClientDataMode {
+  sample
+  real
+}
+
 model Client {
   id         String        @id @default(cuid())
   name       String
   domain     String
   vertical   String
+  dataMode   ClientDataMode @default(sample)
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
   executives Executive[]

@@ -55,12 +55,14 @@ export default async function OverviewPage({
           dataKey="revenueWon"
           color="#dcb268"
           yAxisFormat="currencyK"
+          emptyMessage="No data yet"
         />
         <TimeSeriesChart
           title="Meetings Influenced Over Time"
           data={chartData}
           dataKey="meetingsInfluenced"
           color="#3a6e74"
+          emptyMessage="No data yet"
         />
       </section>
 
@@ -72,7 +74,7 @@ export default async function OverviewPage({
           {data.topPostsByRevenue.length === 0 ? (
             <EmptyState
               title="No attributed posts yet"
-              description="Seed data or widen the date range to see influenced revenue by post."
+              description="Import posts and capture inbound signals to begin attribution tracking."
             />
           ) : (
             <Table>

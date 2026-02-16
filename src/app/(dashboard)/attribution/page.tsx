@@ -45,7 +45,10 @@ export default async function AttributionPage({
         </CardHeader>
         <CardContent>
           {rows.length === 0 ? (
-            <EmptyState title="No attribution rows" description="No posts found for this date range." />
+            <EmptyState
+              title="No attribution rows"
+              description="Import posts and link inbound signals to see attribution confidence and ROI."
+            />
           ) : (
             <Table>
               <TableHeader>

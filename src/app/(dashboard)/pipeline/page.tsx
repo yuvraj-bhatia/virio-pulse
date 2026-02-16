@@ -21,6 +21,12 @@ export default async function PipelinePage({
     endDate: context.endDate
   });
 
+  const hasPipelineData =
+    data.funnel.inboundSignals > 0 ||
+    data.funnel.meetingsHeld > 0 ||
+    data.funnel.opportunitiesCreated > 0 ||
+    data.funnel.closedWon > 0;
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -28,62 +34,71 @@ export default async function PipelinePage({
         description="Inspect content-influenced funnel progression from inbound to closed-won revenue."
       />
 
-      <section className="stagger-in grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <FunnelChart data={data.funnel} />
-        <StageChart data={data.stageDistribution} />
-      </section>
+      {!hasPipelineData ? (
+        <EmptyState
+          title="No pipeline data yet"
+          description="Add inbound signals and opportunities to view funnel progression and influenced revenue."
+        />
+      ) : (
+        <>
+          <section className="stagger-in grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <FunnelChart data={data.funnel} />
+            <StageChart data={data.stageDistribution} />
+          </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm text-muted-foreground">Opportunities with source post context</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {data.opportunities.length === 0 ? (
-            <EmptyState title="No opportunities" description="No opportunities were created in this date range." />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Source Post</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.opportunities.map((opportunity) => (
-                  <TableRow key={opportunity.id}>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          opportunity.stage === "closed_won"
-                            ? "success"
-                            : opportunity.stage === "closed_lost"
-                              ? "destructive"
-                              : "secondary"
-                        }
-                      >
-                        {opportunity.stage.replaceAll("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono">{toCurrency(opportunity.amount)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(opportunity.createdAt).toLocaleDateString("en-US")}
-                    </TableCell>
-                    <TableCell className="max-w-[280px]">
-                      {opportunity.sourceHook ? (
-                        <p className="line-clamp-2 text-sm">{opportunity.sourceHook}</p>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Unattributed</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm text-muted-foreground">Opportunities with source post context</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.opportunities.length === 0 ? (
+                <EmptyState title="No opportunities" description="No opportunities were created in this date range." />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Stage</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Source Post</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.opportunities.map((opportunity) => (
+                      <TableRow key={opportunity.id}>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              opportunity.stage === "closed_won"
+                                ? "success"
+                                : opportunity.stage === "closed_lost"
+                                  ? "destructive"
+                                  : "secondary"
+                            }
+                          >
+                            {opportunity.stage.replaceAll("_", " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono">{toCurrency(opportunity.amount)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(opportunity.createdAt).toLocaleDateString("en-US")}
+                        </TableCell>
+                        <TableCell className="max-w-[280px]">
+                          {opportunity.sourceHook ? (
+                            <p className="line-clamp-2 text-sm">{opportunity.sourceHook}</p>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Unattributed</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

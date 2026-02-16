@@ -10,11 +10,17 @@ export default async function ContentRoute({
 }): Promise<JSX.Element> {
   const context = await getDashboardContext(searchParams);
 
-  const executives = await prisma.executive.findMany({
-    where: { clientId: context.clientId },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true }
-  });
+  const [executives, client] = await Promise.all([
+    prisma.executive.findMany({
+      where: { clientId: context.clientId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true }
+    }),
+    prisma.client.findUnique({
+      where: { id: context.clientId },
+      select: { dataMode: true }
+    })
+  ]);
 
   return (
     <div className="space-y-4">
@@ -22,7 +28,12 @@ export default async function ContentRoute({
         title="Content"
         description="Filter executive posts, inspect attribution trails, and publish new drafts quickly."
       />
-      <ContentPage clientId={context.clientId} range={context.range} executives={executives} />
+      <ContentPage
+        clientId={context.clientId}
+        range={context.range}
+        executives={executives}
+        initialDataMode={client?.dataMode ?? "sample"}
+      />
     </div>
   );
 }

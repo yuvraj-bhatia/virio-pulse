@@ -1,4 +1,5 @@
 import {
+  ClientDataMode,
   CtaType,
   InboundSource,
   MeetingOutcome,
@@ -10,6 +11,8 @@ import {
   type PrismaClient
 } from "@prisma/client";
 import { subDays } from "date-fns";
+
+import { clearClientWorkspaceData } from "@/lib/workspace-data";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -67,11 +70,7 @@ export async function resetClientToSampleData(db: DbClient, clientId: string): P
   const primaryExecutive = executives[0];
   const secondaryExecutive = executives[1] ?? executives[0];
 
-  await db.report.deleteMany({ where: { clientId } });
-  await db.opportunity.deleteMany({ where: { clientId } });
-  await db.meeting.deleteMany({ where: { clientId } });
-  await db.inboundSignal.deleteMany({ where: { clientId } });
-  await db.contentPost.deleteMany({ where: { clientId } });
+  await clearClientWorkspaceData(db, clientId);
 
   await db.appSetting.upsert({
     where: { clientId },
@@ -319,6 +318,11 @@ export async function resetClientToSampleData(db: DbClient, clientId: string): P
       }
     })
   ]);
+
+  await db.client.update({
+    where: { id: clientId },
+    data: { dataMode: ClientDataMode.sample }
+  });
 
   return {
     posts: posts.length,

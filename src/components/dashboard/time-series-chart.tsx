@@ -35,9 +35,17 @@ type SeriesProps = {
   dataKey: string;
   color: string;
   yAxisFormat?: "number" | "currencyK";
+  emptyMessage?: string;
 };
 
-export function TimeSeriesChart({ title, data, dataKey, color, yAxisFormat = "number" }: SeriesProps): JSX.Element {
+export function TimeSeriesChart({
+  title,
+  data,
+  dataKey,
+  color,
+  yAxisFormat = "number",
+  emptyMessage = "No data yet"
+}: SeriesProps): JSX.Element {
   const yTickFormatter = (value: number): string => {
     if (yAxisFormat === "currencyK") {
       return `$${Math.round(value / 1000)}k`;
@@ -45,45 +53,54 @@ export function TimeSeriesChart({ title, data, dataKey, color, yAxisFormat = "nu
     return value.toLocaleString("en-US");
   };
 
+  const hasSignal = data.some((point) => {
+    const value = point[dataKey];
+    return typeof value === "number" && value > 0;
+  });
+
   return (
     <Card className="section-glow">
       <CardHeader>
         <CardTitle className="text-sm text-[#d2bb8d]">{title}</CardTitle>
       </CardHeader>
       <CardContent className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ left: 4, right: 4, top: 8, bottom: 0 }}>
-            <defs>
-              <linearGradient id={`${dataKey}-gradient`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.7} />
-                <stop offset="100%" stopColor={color} stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 4" stroke="rgba(220,178,104,0.12)" />
-            <XAxis
-              dataKey="weekStart"
-              tick={{ fill: "#a5a9b4", fontSize: 11 }}
-              tickFormatter={(value) => value.slice(5)}
-              stroke="rgba(220,178,104,0.26)"
-            />
-            <YAxis
-              tick={{ fill: "#a5a9b4", fontSize: 11 }}
-              tickFormatter={yTickFormatter}
-              stroke="rgba(220,178,104,0.26)"
-              width={64}
-            />
-            <Tooltip content={<TooltipBox />} />
-            <Area
-              type="monotone"
-              dataKey={dataKey}
-              stroke={color}
-              fill={`url(#${dataKey}-gradient)`}
-              strokeWidth={2.1}
-              dot={false}
-              activeDot={{ r: 4, fill: color, strokeWidth: 0 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {!hasSignal ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{emptyMessage}</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ left: 4, right: 4, top: 8, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`${dataKey}-gradient`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.7} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 4" stroke="rgba(220,178,104,0.12)" />
+              <XAxis
+                dataKey="weekStart"
+                tick={{ fill: "#a5a9b4", fontSize: 11 }}
+                tickFormatter={(value) => value.slice(5)}
+                stroke="rgba(220,178,104,0.26)"
+              />
+              <YAxis
+                tick={{ fill: "#a5a9b4", fontSize: 11 }}
+                tickFormatter={yTickFormatter}
+                stroke="rgba(220,178,104,0.26)"
+                width={64}
+              />
+              <Tooltip content={<TooltipBox />} />
+              <Area
+                type="monotone"
+                dataKey={dataKey}
+                stroke={color}
+                fill={`url(#${dataKey}-gradient)`}
+                strokeWidth={2.1}
+                dot={false}
+                activeDot={{ r: 4, fill: color, strokeWidth: 0 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

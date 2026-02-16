@@ -1,4 +1,5 @@
 import { AuthGate } from "@/components/providers/auth-gate";
+import { QueryNoticeToast } from "@/components/dashboard/query-notice-toast";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { getClients } from "@/lib/analytics";
@@ -22,6 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Topbar clients={clients.map((client) => ({ id: client.id, name: client.name }))} />
           <main className="page-enter px-4 py-4 md:px-6 md:py-6">{children}</main>
         </div>
+        <QueryNoticeToast />
       </div>
     </AuthGate>
   );

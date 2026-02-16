@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/db";
 import { badRequest, serverError } from "@/lib/http";
+import { prepareClientForRealDataImport } from "@/lib/workspace-data";
 
 const importRowSchema = z.object({
   postedAt: z.string().min(1),
@@ -51,8 +52,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let created = 0;
     let updated = 0;
+    let switchedToRealMode = false;
 
     await prisma.$transaction(async (tx) => {
+      const modeResult = await prepareClientForRealDataImport(tx, clientId);
+      switchedToRealMode = modeResult.clearedSampleData;
+
       for (const row of rows) {
         const postedAt = new Date(row.postedAt);
         if (Number.isNaN(postedAt.getTime())) {
@@ -114,7 +119,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       data: {
         imported: created + updated,
         created,
-        updated
+        updated,
+        switchedToRealMode
       }
     });
   } catch (error) {
