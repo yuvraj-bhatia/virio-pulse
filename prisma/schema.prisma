@@ -20,6 +20,8 @@ enum CtaType {
 }
 
 enum PostStatus {
+  needs_details
+  ready
   draft
   scheduled
   posted
@@ -56,6 +58,7 @@ enum AttributionConfidence {
   HIGH
   MEDIUM
   LOW
+  UNATTRIBUTED
 }
 
 enum ReportViewMode {
@@ -81,6 +84,7 @@ model Client {
   inbounds   InboundSignal[]
   meetings   Meeting[]
   opportunities Opportunity[]
+  attributionResults AttributionResult[]
   reports    Report[]
   setting    AppSetting?
 }
@@ -105,16 +109,16 @@ model ContentPost {
   clientId    String
   executiveId String
   postUrl     String?
-  postedAt    DateTime
+  postedAt    DateTime?
   format      PostFormat
   theme       String
-  hook        String
-  body        String
-  impressions Int
-  likes       Int
-  comments    Int
-  shares      Int
-  ctaType     CtaType
+  hook        String?
+  body        String?
+  impressions Int         @default(0)
+  likes       Int         @default(0)
+  comments    Int         @default(0)
+  shares      Int         @default(0)
+  ctaType     CtaType     @default(none)
   status      PostStatus
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -122,6 +126,8 @@ model ContentPost {
   client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
   executive   Executive   @relation(fields: [executiveId], references: [id], onDelete: Cascade)
   inbounds    InboundSignal[]
+  opportunities Opportunity[]
+  attributionResults AttributionResult[]
 
   @@index([clientId, postedAt])
   @@index([theme])
@@ -146,6 +152,7 @@ model InboundSignal {
   post          ContentPost?   @relation(fields: [postId], references: [id], onDelete: SetNull)
   executive     Executive?     @relation(fields: [executiveId], references: [id], onDelete: SetNull)
   meetings      Meeting[]
+  opportunities Opportunity[]
 
   @@index([clientId, createdAt])
   @@index([postId])
@@ -174,19 +181,46 @@ model Meeting {
 model Opportunity {
   id         String           @id @default(cuid())
   clientId   String
+  name       String
   meetingId  String?
+  inboundSignalId String?
+  postId     String?
   stage      OpportunityStage
   amount     Int
   createdAt  DateTime         @default(now())
+  closeDate  DateTime?
   closedAt   DateTime?
   updatedAt  DateTime         @updatedAt
 
   client     Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   meeting    Meeting?         @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  inboundSignal InboundSignal? @relation(fields: [inboundSignalId], references: [id], onDelete: SetNull)
+  post       ContentPost?     @relation(fields: [postId], references: [id], onDelete: SetNull)
 
   @@index([clientId, stage])
   @@index([clientId, createdAt])
   @@index([meetingId])
+  @@index([inboundSignalId])
+  @@index([postId])
+}
+
+model AttributionResult {
+  id                      String                @id @default(cuid())
+  clientId                String
+  postId                  String
+  windowRangeDays         Int
+  computedAt              DateTime              @default(now())
+  meetingsInfluencedCount Int                   @default(0)
+  pipelineCreatedAmount   Int                   @default(0)
+  revenueWonAmount        Int                   @default(0)
+  confidence              AttributionConfidence @default(UNATTRIBUTED)
+  supportingLinks         Json?
+
+  client                  Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  post                    ContentPost           @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, postId, windowRangeDays])
+  @@index([clientId, windowRangeDays, computedAt])
 }
 
 model Report {

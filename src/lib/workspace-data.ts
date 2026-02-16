@@ -3,6 +3,7 @@ import { ClientDataMode, type Prisma, type PrismaClient } from "@prisma/client";
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 export type WorkspaceClearResult = {
+  attributionRows: number;
   reports: number;
   opportunities: number;
   meetings: number;
@@ -26,6 +27,7 @@ async function requireClient(db: DbClient, clientId: string): Promise<{ id: stri
 export async function clearClientWorkspaceData(db: DbClient, clientId: string): Promise<WorkspaceClearResult> {
   await requireClient(db, clientId);
 
+  const attributionRows = await db.attributionResult.deleteMany({ where: { clientId } });
   const reports = await db.report.deleteMany({ where: { clientId } });
   const opportunities = await db.opportunity.deleteMany({ where: { clientId } });
   const meetings = await db.meeting.deleteMany({ where: { clientId } });
@@ -33,6 +35,7 @@ export async function clearClientWorkspaceData(db: DbClient, clientId: string): 
   const posts = await db.contentPost.deleteMany({ where: { clientId } });
 
   return {
+    attributionRows: attributionRows.count,
     reports: reports.count,
     opportunities: opportunities.count,
     meetings: meetings.count,

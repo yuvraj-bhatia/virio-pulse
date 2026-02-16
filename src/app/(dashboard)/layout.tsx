@@ -1,4 +1,6 @@
 import { AuthGate } from "@/components/providers/auth-gate";
+import { ActiveClientProvider } from "@/components/dashboard/client-context";
+import { DemoChecklistPanel } from "@/components/dashboard/demo-checklist-panel";
 import { QueryNoticeToast } from "@/components/dashboard/query-notice-toast";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
@@ -20,10 +22,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Sidebar />
         </div>
         <div className="min-w-0">
-          <Topbar clients={clients.map((client) => ({ id: client.id, name: client.name }))} />
-          <main className="page-enter px-4 py-4 md:px-6 md:py-6">{children}</main>
+          <ActiveClientProvider clients={clients.map((client) => ({ id: client.id, name: client.name }))}>
+            <Topbar clients={clients.map((client) => ({ id: client.id, name: client.name }))} />
+            <main className="page-enter px-4 py-4 md:px-6 md:py-6">{children}</main>
+          </ActiveClientProvider>
         </div>
         <QueryNoticeToast />
+        <DemoChecklistPanel />
       </div>
     </AuthGate>
   );

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { recomputeAttributionAllRanges } from "@/lib/attribution-results";
 import { prisma } from "@/lib/db";
 import { badRequest, serverError } from "@/lib/http";
 
@@ -39,19 +40,24 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       return badRequest(parsed.error.issues[0]?.message ?? "Invalid request");
     }
 
-    const data = await prisma.appSetting.upsert({
-      where: { clientId: parsed.data.clientId },
-      create: {
-        clientId: parsed.data.clientId,
-        attributionWindowDays: parsed.data.attributionWindowDays ?? 7,
-        useSoftAttribution: parsed.data.useSoftAttribution ?? true
-      },
-      update: {
-        ...(parsed.data.attributionWindowDays ? { attributionWindowDays: parsed.data.attributionWindowDays } : {}),
-        ...(parsed.data.useSoftAttribution !== undefined
-          ? { useSoftAttribution: parsed.data.useSoftAttribution }
-          : {})
-      }
+    const data = await prisma.$transaction(async (tx) => {
+      const setting = await tx.appSetting.upsert({
+        where: { clientId: parsed.data.clientId },
+        create: {
+          clientId: parsed.data.clientId,
+          attributionWindowDays: parsed.data.attributionWindowDays ?? 7,
+          useSoftAttribution: parsed.data.useSoftAttribution ?? true
+        },
+        update: {
+          ...(parsed.data.attributionWindowDays ? { attributionWindowDays: parsed.data.attributionWindowDays } : {}),
+          ...(parsed.data.useSoftAttribution !== undefined
+            ? { useSoftAttribution: parsed.data.useSoftAttribution }
+            : {})
+        }
+      });
+
+      await recomputeAttributionAllRanges(tx, parsed.data.clientId);
+      return setting;
     });
 
     return NextResponse.json({ data });

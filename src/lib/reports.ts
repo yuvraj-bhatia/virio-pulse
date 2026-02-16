@@ -46,7 +46,7 @@ function buildMarkdown(
   lines.push("");
   for (const post of data.topPostsByRevenue.slice(0, 5)) {
     lines.push(
-      `- ${post.theme} | ${post.format} | ${format(post.postedAt, "PP")}: ${post.meetings} meetings, $${post.revenue.toLocaleString("en-US")}`
+      `- ${post.theme} | ${post.format} | ${post.postedAt ? format(post.postedAt, "PP") : "No date"}: ${post.meetings} meetings, $${post.revenue.toLocaleString("en-US")}`
     );
   }
   lines.push("");

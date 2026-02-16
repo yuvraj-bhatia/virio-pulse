@@ -10,6 +10,7 @@
     "db:setup": "mkdir -p prisma && touch prisma/dev.db && prisma generate && prisma db push --skip-generate",
     "db:seed": "tsx prisma/seed.ts",
     "verify:client-isolation": "tsx scripts/verify-client-isolation.ts",
+    "test:demo-flow": "tsx scripts/smoke-demo-flow.ts",
     "test": "vitest run"
   },
   "dependencies": {

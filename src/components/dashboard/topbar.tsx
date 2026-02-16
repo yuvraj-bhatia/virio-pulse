@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { CalendarClock } from "lucide-react";
 
+import { useActiveClient } from "@/components/dashboard/client-context";
 import { ReportDialog } from "@/components/dashboard/report-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -29,10 +30,12 @@ const mobileNav = [
   { href: "/attribution", label: "Attribution" },
   { href: "/pipeline", label: "Pipeline" },
   { href: "/insights", label: "Insights" },
+  { href: "/demo", label: "Demo" },
   { href: "/settings", label: "Settings" }
 ] as const;
 
 export function Topbar({ clients }: TopbarProps): JSX.Element {
+  const { activeClientId, setActiveClientId } = useActiveClient();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,7 +45,13 @@ export function Topbar({ clients }: TopbarProps): JSX.Element {
 
   const fallbackClientId = clients[0]?.id ?? null;
 
-  const effectiveClientId = selectedClientId ?? fallbackClientId;
+  const effectiveClientId = selectedClientId ?? activeClientId ?? fallbackClientId;
+
+  useEffect(() => {
+    if (effectiveClientId) {
+      setActiveClientId(effectiveClientId);
+    }
+  }, [effectiveClientId, setActiveClientId]);
 
   useEffect(() => {
     if (!selectedClientId && fallbackClientId) {
@@ -61,6 +70,9 @@ export function Topbar({ clients }: TopbarProps): JSX.Element {
   const updateQuery = (key: "clientId" | "range", value: string): void => {
     const next = new URLSearchParams(searchParams);
     next.set(key, value);
+    if (key === "clientId") {
+      setActiveClientId(value);
+    }
     router.push(`${pathname}?${next.toString()}`);
   };
 
@@ -99,7 +111,7 @@ export function Topbar({ clients }: TopbarProps): JSX.Element {
         <div className="flex flex-wrap items-center gap-2">
           <div className="hidden items-center gap-2 rounded-xl border border-[#dcb26844] bg-[linear-gradient(180deg,rgba(220,178,104,0.16),rgba(220,178,104,0.08))] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)] lg:flex">
             <CalendarClock className="h-4 w-4 text-[#e4c17f]" />
-            <span className="text-xs text-[#e0d5bf]">{selectedClient?.name ?? "No client selected"}</span>
+            <span className="text-xs text-[#e0d5bf]">Active client: {selectedClient?.name ?? "No client selected"}</span>
           </div>
           <ReportDialog clientId={effectiveClientId} range={selectedRange} />
         </div>

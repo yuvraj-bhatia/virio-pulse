@@ -14,9 +14,9 @@ import {
 } from "@prisma/client";
 import { differenceInCalendarDays, endOfWeek, format, startOfWeek, subDays } from "date-fns";
 
+import { recomputeAttributionRange } from "@/lib/attribution-results";
 import { prisma } from "@/lib/db";
 import {
-  mergeConfidence,
   resolveInboundAttributions,
   resolveMeetingAttributions,
   resolveOpportunityAttributions,
@@ -62,7 +62,7 @@ export type OverviewResult = {
     postId: string;
     theme: string;
     format: ContentPost["format"];
-    postedAt: Date;
+    postedAt: Date | null;
     hook: string;
     meetings: number;
     revenue: number;
@@ -165,9 +165,17 @@ export async function loadDataset(window: AnalyticsWindow): Promise<Dataset> {
     })
   ]);
 
-  const inboundAttribution = resolveInboundAttributions(inboundsInRange, attributionPosts, settings);
+  const attributionEligiblePosts = attributionPosts.filter(
+    (post): post is PostWithExecutive & { postedAt: Date } => post.postedAt !== null
+  );
+
+  const inboundAttribution = resolveInboundAttributions(inboundsInRange, attributionEligiblePosts, settings);
   const meetingAttribution = resolveMeetingAttributions(meetingsInRange, inboundAttribution);
-  const opportunityAttribution = resolveOpportunityAttributions(opportunitiesInRange, meetingAttribution);
+  const opportunityAttribution = resolveOpportunityAttributions(
+    opportunitiesInRange,
+    meetingAttribution,
+    inboundAttribution
+  );
 
   return {
     settings,
@@ -182,25 +190,87 @@ export async function loadDataset(window: AnalyticsWindow): Promise<Dataset> {
   };
 }
 
-export async function getOverviewData(window: AnalyticsWindow): Promise<OverviewResult> {
-  const dataset = await loadDataset(window);
-  const postedPosts = dataset.postsInRange.filter((post) => post.status === PostStatus.posted);
+function getRangeDays(window: AnalyticsWindow): 7 | 30 | 90 {
+  const rangeDays = differenceInCalendarDays(window.endDate, window.startDate) + 1;
+  if (rangeDays <= 7) return 7;
+  if (rangeDays <= 30) return 30;
+  return 90;
+}
 
-  const meetingsInfluenced = dataset.meetingsInRange.filter((meeting) => {
-    const attribution = dataset.meetingAttribution.get(meeting.id);
-    return Boolean(attribution?.attributedPostId);
-  }).length;
-
-  const wins = dataset.opportunitiesInRange.filter((opp) => opp.stage === OpportunityStage.closed_won);
-  const attributedWins = wins.filter((opp) => {
-    const attribution = dataset.opportunityAttribution.get(opp.id);
-    return Boolean(attribution?.attributedPostId);
+async function readAttributionResults(window: AnalyticsWindow): Promise<
+  Array<{
+    postId: string;
+    meetingsInfluencedCount: number;
+    pipelineCreatedAmount: number;
+    revenueWonAmount: number;
+    confidence: AttributionConfidence;
+    post: {
+      id: string;
+      theme: string;
+      format: ContentPost["format"];
+      postedAt: Date | null;
+      hook: string | null;
+      impressions: number;
+    };
+  }>
+> {
+  const rangeDays = getRangeDays(window);
+  let rows = await prisma.attributionResult.findMany({
+    where: {
+      clientId: window.clientId,
+      windowRangeDays: rangeDays
+    },
+    include: {
+      post: {
+        select: {
+          id: true,
+          theme: true,
+          format: true,
+          postedAt: true,
+          hook: true,
+          impressions: true
+        }
+      }
+    }
   });
 
-  const pipelineCreated = dataset.opportunitiesInRange.reduce((sum, opportunity) => sum + opportunity.amount, 0);
-  const revenueWon = attributedWins.reduce((sum, opportunity) => sum + opportunity.amount, 0);
+  if (rows.length === 0) {
+    await recomputeAttributionRange(prisma, window.clientId, rangeDays);
+    rows = await prisma.attributionResult.findMany({
+      where: {
+        clientId: window.clientId,
+        windowRangeDays: rangeDays
+      },
+      include: {
+        post: {
+          select: {
+            id: true,
+            theme: true,
+            format: true,
+            postedAt: true,
+            hook: true,
+            impressions: true
+          }
+        }
+      }
+    });
+  }
 
-  const postsCount = Math.max(postedPosts.length, 1);
+  return rows;
+}
+
+export async function getOverviewData(window: AnalyticsWindow): Promise<OverviewResult> {
+  const [dataset, attributionRows] = await Promise.all([loadDataset(window), readAttributionResults(window)]);
+
+  const meetingsInfluenced = attributionRows.reduce((sum, row) => sum + row.meetingsInfluencedCount, 0);
+
+  const wins = dataset.opportunitiesInRange.filter((opp) => opp.stage === OpportunityStage.closed_won);
+  const attributedWins = wins.filter((opp) => Boolean(dataset.opportunityAttribution.get(opp.id)?.attributedPostId));
+
+  const pipelineCreated = dataset.opportunitiesInRange.reduce((sum, opportunity) => sum + opportunity.amount, 0);
+  const revenueWon = attributionRows.reduce((sum, row) => sum + row.revenueWonAmount, 0);
+
+  const postsCount = Math.max(attributionRows.length, 1);
   const contentToMeetingRate = meetingsInfluenced / postsCount;
   const meetingToWinRate = meetingsInfluenced === 0 ? 0 : attributedWins.length / meetingsInfluenced;
 
@@ -250,14 +320,14 @@ export async function getOverviewData(window: AnalyticsWindow): Promise<Overview
     revenueByPost.set(attributedPostId, (revenueByPost.get(attributedPostId) ?? 0) + opportunity.amount);
   }
 
-  const byPost = postedPosts.map((post) => ({
-    postId: post.id,
-    theme: post.theme,
-    format: post.format,
-    postedAt: post.postedAt,
-    hook: post.hook,
-    meetings: meetingsByPost.get(post.id) ?? 0,
-    revenue: revenueByPost.get(post.id) ?? 0
+  const byPost = attributionRows.map((row) => ({
+    postId: row.postId,
+    theme: row.post.theme,
+    format: row.post.format,
+    postedAt: row.post.postedAt,
+    hook: row.post.hook ?? "(missing hook)",
+    meetings: row.meetingsInfluencedCount,
+    revenue: row.revenueWonAmount
   }));
 
   const topPostsByRevenue = byPost.sort((a, b) => b.revenue - a.revenue).slice(0, 10);
@@ -285,7 +355,8 @@ export async function getOverviewData(window: AnalyticsWindow): Promise<Overview
     });
 
     const previousRevenue = previousOpps.reduce((sum, opp) => sum + opp.amount, 0);
-    const delta = previousRevenue === 0 ? 1 : (revenueWon - previousRevenue) / previousRevenue;
+    const delta =
+      previousRevenue === 0 ? (revenueWon === 0 ? 0 : 1) : (revenueWon - previousRevenue) / previousRevenue;
     const direction = delta >= 0 ? "up" : "down";
     const changePercent = `${Math.abs(delta * 100).toFixed(1)}%`;
 
@@ -297,28 +368,28 @@ export async function getOverviewData(window: AnalyticsWindow): Promise<Overview
   }
 
   const themeMap = new Map<string, ThemePerformance>();
-  for (const post of postedPosts) {
-    if (!themeMap.has(post.theme)) {
-      themeMap.set(post.theme, {
-        theme: post.theme,
+  for (const row of attributionRows) {
+    if (!themeMap.has(row.post.theme)) {
+      themeMap.set(row.post.theme, {
+        theme: row.post.theme,
         meetings: 0,
         revenue: 0,
         posts: 0
       });
     }
-    const entry = themeMap.get(post.theme);
+    const entry = themeMap.get(row.post.theme);
     if (!entry) continue;
     entry.posts += 1;
-    entry.meetings += meetingsByPost.get(post.id) ?? 0;
-    entry.revenue += revenueByPost.get(post.id) ?? 0;
+    entry.meetings += row.meetingsInfluencedCount;
+    entry.revenue += row.revenueWonAmount;
   }
 
   const themePerformance = Array.from(themeMap.values()).sort((a, b) => b.revenue - a.revenue);
 
-  const hookPerformance: HookPerformance[] = postedPosts
-    .map((post) => ({
-      hook: post.hook,
-      meetings: meetingsByPost.get(post.id) ?? 0
+  const hookPerformance: HookPerformance[] = attributionRows
+    .map((row) => ({
+      hook: row.post.hook ?? "(missing hook)",
+      meetings: row.meetingsInfluencedCount
     }))
     .sort((a, b) => b.meetings - a.meetings)
     .slice(0, 5);
@@ -336,10 +407,17 @@ export async function getOverviewData(window: AnalyticsWindow): Promise<Overview
 export async function getContentData(window: AnalyticsWindow, filters: ContentFilters): Promise<ContentListItem[]> {
   const where: Prisma.ContentPostWhereInput = {
     clientId: window.clientId,
-    postedAt: {
-      gte: window.startDate,
-      lte: window.endDate
-    }
+    OR: [
+      {
+        postedAt: {
+          gte: window.startDate,
+          lte: window.endDate
+        }
+      },
+      {
+        postedAt: null
+      }
+    ]
   };
 
   if (filters.executiveId) where.executiveId = filters.executiveId;
@@ -356,7 +434,7 @@ export async function getContentData(window: AnalyticsWindow, filters: ContentFi
   const posts = await prisma.contentPost.findMany({
     where,
     include: { executive: true },
-    orderBy: { postedAt: "desc" }
+    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }]
   });
 
   return posts.map((post) => ({
@@ -395,7 +473,20 @@ export async function getPostDetail(postId: string): Promise<{
   }
 
   const directInbounds = await prisma.inboundSignal.findMany({
-    where: { postId: post.id },
+    where: {
+      OR: [
+        { postId: post.id },
+        ...(post.postUrl
+          ? [
+              {
+                entryPointUrl: {
+                  contains: post.postUrl
+                }
+              }
+            ]
+          : [])
+      ]
+    },
     orderBy: { createdAt: "desc" }
   });
 
@@ -408,9 +499,19 @@ export async function getPostDetail(postId: string): Promise<{
 
   const opportunities = await prisma.opportunity.findMany({
     where: {
-      meetingId: {
-        in: meetings.map((meeting) => meeting.id)
-      }
+      OR: [
+        {
+          meetingId: {
+            in: meetings.map((meeting) => meeting.id)
+          }
+        },
+        { postId: post.id },
+        {
+          inboundSignalId: {
+            in: directInbounds.map((inbound) => inbound.id)
+          }
+        }
+      ]
     },
     orderBy: { createdAt: "desc" }
   });
@@ -430,59 +531,34 @@ export async function getPostDetail(postId: string): Promise<{
 }
 
 export async function getAttributionRows(window: AnalyticsWindow): Promise<PostAttributionRow[]> {
-  const dataset = await loadDataset(window);
+  const [posts, attributionRows] = await Promise.all([
+    prisma.contentPost.findMany({
+      where: {
+        clientId: window.clientId,
+        OR: [
+          {
+            postedAt: {
+              gte: window.startDate,
+              lte: window.endDate
+            }
+          },
+          { postedAt: null }
+        ]
+      },
+      orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }]
+    }),
+    readAttributionResults(window)
+  ]);
 
-  const meetingsByPost = new Map<string, number>();
-  const pipelineByPost = new Map<string, number>();
-  const revenueByPost = new Map<string, number>();
-  const confidenceByPost = new Map<string, AttributionConfidence[]>();
+  const attributionMap = new Map(attributionRows.map((row) => [row.postId, row]));
 
-  for (const inbound of dataset.inboundsInRange) {
-    const attribution = dataset.inboundAttribution.get(inbound.id);
-    if (!attribution?.attributedPostId) continue;
-
-    const confidenceBucket = confidenceByPost.get(attribution.attributedPostId) ?? [];
-    confidenceBucket.push(attribution.confidence);
-    confidenceByPost.set(attribution.attributedPostId, confidenceBucket);
-  }
-
-  for (const meeting of dataset.meetingsInRange) {
-    const attribution = dataset.meetingAttribution.get(meeting.id);
-    if (!attribution?.attributedPostId) continue;
-    meetingsByPost.set(attribution.attributedPostId, (meetingsByPost.get(attribution.attributedPostId) ?? 0) + 1);
-
-    const confidenceBucket = confidenceByPost.get(attribution.attributedPostId) ?? [];
-    confidenceBucket.push(attribution.confidence);
-    confidenceByPost.set(attribution.attributedPostId, confidenceBucket);
-  }
-
-  for (const opportunity of dataset.opportunitiesInRange) {
-    const attribution = dataset.opportunityAttribution.get(opportunity.id);
-    if (!attribution?.attributedPostId) continue;
-
-    pipelineByPost.set(
-      attribution.attributedPostId,
-      (pipelineByPost.get(attribution.attributedPostId) ?? 0) + opportunity.amount
-    );
-
-    if (opportunity.stage === OpportunityStage.closed_won) {
-      revenueByPost.set(
-        attribution.attributedPostId,
-        (revenueByPost.get(attribution.attributedPostId) ?? 0) + opportunity.amount
-      );
-    }
-
-    const confidenceBucket = confidenceByPost.get(attribution.attributedPostId) ?? [];
-    confidenceBucket.push(attribution.confidence);
-    confidenceByPost.set(attribution.attributedPostId, confidenceBucket);
-  }
-
-  return dataset.postsInRange.map((post) => {
-    const meetings = meetingsByPost.get(post.id) ?? 0;
-    const pipeline = pipelineByPost.get(post.id) ?? 0;
-    const revenue = revenueByPost.get(post.id) ?? 0;
+  return posts.map((post) => {
+    const row = attributionMap.get(post.id);
+    const meetings = row?.meetingsInfluencedCount ?? 0;
+    const pipeline = row?.pipelineCreatedAmount ?? 0;
+    const revenue = row?.revenueWonAmount ?? 0;
     const roiScore = post.impressions === 0 ? 0 : (revenue + pipeline * 0.35) / post.impressions;
-    const confidence = mergeConfidence(confidenceByPost.get(post.id) ?? [AttributionConfidence.LOW]);
+    const confidence = row?.confidence ?? AttributionConfidence.UNATTRIBUTED;
 
     return {
       postId: post.id,
@@ -559,6 +635,7 @@ export async function getInsightsStats(window: AnalyticsWindow): Promise<{
   const dayMap = new Map<string, { day: string; revenue: number; meetings: number }>();
 
   for (const post of dataset.postsInRange) {
+    if (!post.postedAt) continue;
     const day = format(post.postedAt, "EEEE");
     const item = dayMap.get(day) ?? { day, revenue: 0, meetings: 0 };
     item.meetings += 0;
@@ -581,6 +658,7 @@ export async function getInsightsStats(window: AnalyticsWindow): Promise<{
   }
 
   for (const post of dataset.postsInRange) {
+    if (!post.postedAt) continue;
     const day = format(post.postedAt, "EEEE");
     const item = dayMap.get(day) ?? { day, revenue: 0, meetings: 0 };
     item.meetings += meetingByPost.get(post.id) ?? 0;
@@ -623,10 +701,10 @@ export function toCSV(rows: PostAttributionRow[]): string {
 
   const body = rows.map((row) =>
     line([
-      row.postHook,
+      row.postHook ?? "",
       row.theme,
       row.format,
-      row.postedAt.toISOString(),
+      row.postedAt ? row.postedAt.toISOString() : "",
       row.impressions,
       row.meetings,
       row.pipeline,

@@ -9,6 +9,10 @@ export default async function ContentRoute({
   searchParams: Record<string, string | string[] | undefined>;
 }): Promise<JSX.Element> {
   const context = await getDashboardContext(searchParams);
+  const openParamRaw = searchParams.open;
+  const openParam = Array.isArray(openParamRaw) ? openParamRaw[0] : openParamRaw;
+  const initialOpenAction =
+    openParam === "import-urls" || openParam === "inbound" || openParam === "draft" ? openParam : null;
 
   const [executives, client] = await Promise.all([
     prisma.executive.findMany({
@@ -33,6 +37,7 @@ export default async function ContentRoute({
         range={context.range}
         executives={executives}
         initialDataMode={client?.dataMode ?? "sample"}
+        initialOpenAction={initialOpenAction}
       />
     </div>
   );

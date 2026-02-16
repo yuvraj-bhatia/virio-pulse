@@ -2,8 +2,8 @@ import { PostFormat } from "@prisma/client";
 
 export type ImportDedupeRow = {
   postUrl?: string | null;
-  hook: string;
-  postedAt: string | Date;
+  hook?: string | null;
+  postedAt?: string | Date | null;
 };
 
 const acceptedPathPatterns = [
@@ -104,10 +104,14 @@ function coercePostedAtKey(rawPostedAt: string | Date): string {
   return parsed.toISOString();
 }
 
-export function buildImportDedupeKey(row: ImportDedupeRow): string {
+export function buildImportDedupeKey(row: ImportDedupeRow): string | null {
   const normalizedUrl = row.postUrl ? normalizeLinkedInUrl(row.postUrl) : null;
   if (normalizedUrl) {
     return `url:${normalizedUrl}`;
+  }
+
+  if (!row.postedAt || !row.hook?.trim()) {
+    return null;
   }
 
   const postedAtKey = coercePostedAtKey(row.postedAt);
@@ -125,6 +129,11 @@ export function dedupeImportRows<T extends ImportDedupeRow>(rows: T[]): {
 
   for (const row of rows) {
     const key = buildImportDedupeKey(row);
+    if (!key) {
+      uniqueRows.push(row);
+      continue;
+    }
+
     if (seen.has(key)) {
       skippedDuplicates += 1;
       continue;

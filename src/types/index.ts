@@ -11,10 +11,10 @@ import type {
 
 export type PostAttributionRow = {
   postId: string;
-  postHook: string;
+  postHook: string | null;
   theme: string;
   format: PostFormat;
-  postedAt: Date;
+  postedAt: Date | null;
   impressions: number;
   meetings: number;
   pipeline: number;
@@ -80,11 +80,11 @@ export type ContentListItem = {
   executiveId: string;
   postUrl: string | null;
   executiveName: string;
-  postedAt: Date;
+  postedAt: Date | null;
   format: PostFormat;
   theme: string;
-  hook: string;
-  body: string;
+  hook: string | null;
+  body: string | null;
   impressions: number;
   likes: number;
   comments: number;

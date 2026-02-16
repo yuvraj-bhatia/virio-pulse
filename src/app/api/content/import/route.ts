@@ -4,6 +4,7 @@ import { CtaType, PostFormat, PostStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { recomputeAttributionAllRanges } from "@/lib/attribution-results";
 import { prisma } from "@/lib/db";
 import { badRequest, serverError } from "@/lib/http";
 import { prepareClientForRealDataImport } from "@/lib/workspace-data";
@@ -113,6 +114,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           created += 1;
         }
       }
+
+      await recomputeAttributionAllRanges(tx, clientId);
     });
 
     return NextResponse.json({

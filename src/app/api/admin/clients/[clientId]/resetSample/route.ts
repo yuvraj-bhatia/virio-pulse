@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { recomputeAttributionAllRanges } from "@/lib/attribution-results";
 import { prisma } from "@/lib/db";
 import { badRequest, serverError } from "@/lib/http";
 import { resetClientToSampleData } from "@/lib/sample-data";
@@ -21,7 +22,11 @@ export async function POST(
       return badRequest(parsed.error.issues[0]?.message ?? "Invalid clientId");
     }
 
-    const result = await prisma.$transaction((tx) => resetClientToSampleData(tx, parsed.data.clientId));
+    const result = await prisma.$transaction(async (tx) => {
+      const reset = await resetClientToSampleData(tx, parsed.data.clientId);
+      await recomputeAttributionAllRanges(tx, parsed.data.clientId);
+      return reset;
+    });
 
     return NextResponse.json({
       data: {

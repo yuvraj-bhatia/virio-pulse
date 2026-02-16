@@ -184,7 +184,7 @@ export async function resetClientToSampleData(db: DbClient, clientId: string): P
       }
     });
 
-    posts.push({ id: post.id, postedAt: post.postedAt, executiveId: post.executiveId });
+    posts.push({ id: post.id, postedAt: post.postedAt ?? template.postedAt, executiveId: post.executiveId });
   }
 
   const inboundDirect = await db.inboundSignal.create({
@@ -290,30 +290,42 @@ export async function resetClientToSampleData(db: DbClient, clientId: string): P
     db.opportunity.create({
       data: {
         clientId,
+        name: "Atlas ERP enterprise expansion",
         meetingId: meetings[0].id,
+        inboundSignalId: inboundDirect.id,
+        postId: posts[0]?.id,
         stage: OpportunityStage.closed_won,
         amount: 260000,
         createdAt: atDayOffset(23, 10),
+        closeDate: atDayOffset(18, 10),
         closedAt: atDayOffset(18, 10)
       }
     }),
     db.opportunity.create({
       data: {
         clientId,
+        name: "Vector Labs platform rollout",
         meetingId: meetings[1].id,
+        inboundSignalId: inboundSoft.id,
+        postId: posts[4]?.id ?? null,
         stage: OpportunityStage.proposal,
         amount: 156805,
         createdAt: atDayOffset(3, 14),
+        closeDate: null,
         closedAt: null
       }
     }),
     db.opportunity.create({
       data: {
         clientId,
+        name: "Northwind referral pilot",
         meetingId: meetings[2].id,
+        inboundSignalId: inboundUnattributed.id,
+        postId: null,
         stage: OpportunityStage.closed_won,
         amount: 97650,
         createdAt: atDayOffset(12, 12),
+        closeDate: atDayOffset(6, 9),
         closedAt: atDayOffset(6, 9)
       }
     })

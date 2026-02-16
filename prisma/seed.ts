@@ -357,10 +357,14 @@ async function main(): Promise<void> {
       await prisma.opportunity.create({
         data: {
           clientId: client.id,
+          name: `${client.name} opportunity ${meeting.id.slice(-6)}`,
           meetingId: meeting.id,
+          inboundSignalId: inbound.id,
+          postId: inbound.postId,
           stage,
           amount,
           createdAt,
+          closeDate: closedAt,
           closedAt
         }
       });
@@ -437,10 +441,14 @@ async function main(): Promise<void> {
       await prisma.opportunity.create({
         data: {
           clientId: client.id,
+          name: "Enterprise expansion deal",
           meetingId: meeting.id,
+          inboundSignalId: inbound.id,
+          postId: pricingPost.id,
           stage: OpportunityStage.closed_won,
           amount: 260000,
           createdAt: new Date(meeting.scheduledAt.getTime() + 2 * 24 * 60 * 60 * 1000),
+          closeDate: new Date(meeting.scheduledAt.getTime() + 24 * 24 * 60 * 60 * 1000),
           closedAt: new Date(meeting.scheduledAt.getTime() + 24 * 24 * 60 * 60 * 1000)
         }
       });

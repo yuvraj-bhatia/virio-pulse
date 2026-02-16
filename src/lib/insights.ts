@@ -16,6 +16,23 @@ export function buildHeuristicInsights(stats: Awaited<ReturnType<typeof getInsig
   const topHook = stats.overview.topHooks[0];
   const topDay = stats.postingDays[0];
 
+  const noAttributionData =
+    stats.overview.kpis.meetingsInfluenced === 0 &&
+    stats.overview.kpis.pipelineCreated === 0 &&
+    stats.overview.kpis.revenueWon === 0 &&
+    !topTheme &&
+    !topHook;
+
+  if (noAttributionData) {
+    return [
+      "Import LinkedIn post URLs to populate your attribution workspace.",
+      "Fill missing hook and postedAt fields so posts are attribution-ready.",
+      "Add at least one inbound signal linked to a post or entry-point URL.",
+      "Create an opportunity and set stage progression to generate pipeline impact.",
+      "Recompute attribution and generate the weekly report to close the loop."
+    ];
+  }
+
   const items: string[] = [];
 
   if (topTheme) {

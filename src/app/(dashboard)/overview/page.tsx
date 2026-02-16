@@ -1,13 +1,16 @@
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { TimeSeriesChart } from "@/components/dashboard/time-series-chart";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { computeWeeklyBuckets, getOverviewData } from "@/lib/analytics";
+import { prisma } from "@/lib/db";
 import { getDashboardContext } from "@/lib/page-context";
 import { toCurrency, toPercent } from "@/lib/utils";
 
@@ -22,6 +25,12 @@ export default async function OverviewPage({
     startDate: context.startDate,
     endDate: context.endDate
   });
+  const [postCount, inboundCount, opportunityCount] = await Promise.all([
+    prisma.contentPost.count({ where: { clientId: context.clientId } }),
+    prisma.inboundSignal.count({ where: { clientId: context.clientId } }),
+    prisma.opportunity.count({ where: { clientId: context.clientId } })
+  ]);
+  const isFirstRun = postCount === 0 && inboundCount === 0 && opportunityCount === 0;
 
   const bucketMap = new Map(data.weeklySeries.map((point) => [point.weekStart, point]));
   const chartData = computeWeeklyBuckets(context.startDate, context.endDate).map((bucket) => {
@@ -47,6 +56,38 @@ export default async function OverviewPage({
         <KpiCard label="Content-to-Meeting" value={toPercent(data.kpis.contentToMeetingRate)} trend="neutral" hint="conversion" />
         <KpiCard label="Meeting-to-Win" value={toPercent(data.kpis.meetingToWinRate)} trend="neutral" hint="win rate" />
       </section>
+
+      {isFirstRun ? (
+        <Card className="section-glow border-[#dcb26866]">
+          <CardHeader>
+            <CardTitle>Start in under 3 minutes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <Button asChild variant="outline">
+                <Link href={`/content?clientId=${context.clientId}&range=${context.range}&open=import-urls`}>
+                  Step 1: Import posts
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`/content?clientId=${context.clientId}&range=${context.range}&open=inbound`}>
+                  Step 2: Add inbound signals
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`/pipeline?clientId=${context.clientId}&range=${context.range}&open=create-opportunity`}>
+                  Step 3: Create opportunities
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href={`/attribution?clientId=${context.clientId}&range=${context.range}&recompute=1`}>
+                  Step 4: See attribution + insights
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <section className="stagger-in grid grid-cols-1 gap-4 xl:grid-cols-2">
         <TimeSeriesChart
@@ -94,7 +135,9 @@ export default async function OverviewPage({
                       <Badge variant="secondary">{post.theme}</Badge>
                     </TableCell>
                     <TableCell className="capitalize text-muted-foreground">{post.format}</TableCell>
-                    <TableCell className="text-muted-foreground">{post.postedAt.toLocaleDateString("en-US")}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {post.postedAt ? post.postedAt.toLocaleDateString("en-US") : "No date"}
+                    </TableCell>
                     <TableCell>{post.meetings}</TableCell>
                     <TableCell className="font-mono">{toCurrency(post.revenue)}</TableCell>
                   </TableRow>

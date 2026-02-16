@@ -178,7 +178,7 @@ describe("inheritance and aggregation", () => {
     const meetings = [{ id: "m-2", inboundId: "in-8" }];
     const meetingMap = resolveMeetingAttributions(meetings, inboundMap);
     const opportunities = [{ id: "o-1", meetingId: "m-2" }];
-    const result = resolveOpportunityAttributions(opportunities, meetingMap);
+    const result = resolveOpportunityAttributions(opportunities, meetingMap, inboundMap);
 
     expect(result.get("o-1")?.attributedPostId).toBe("post-new");
     expect(result.get("o-1")?.confidence).toBe(AttributionConfidence.MEDIUM);
@@ -207,7 +207,8 @@ describe("inheritance and aggregation", () => {
         { id: "o-2", meetingId: "m-3" },
         { id: "o-3", meetingId: "m-4" }
       ],
-      meetingMap
+      meetingMap,
+      inboundMap
     );
 
     const counts = Array.from(opportunityMap.values()).reduce<Record<string, number>>((acc, current) => {

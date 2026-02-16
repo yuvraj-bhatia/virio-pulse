@@ -25,6 +25,7 @@ const maxUrlLines = 200;
 export type ImportUrlsResult = {
   imported: number;
   skippedDuplicates: number;
+  needsDetails?: number;
   errors?: Array<{ index: number; message: string }>;
 };
 
@@ -101,19 +102,12 @@ function validateRow(row: UrlImportRow): RowValidation {
     messages: []
   };
 
-  if (!row.postedAt.trim()) {
-    result.postedAt = "postedAt is required";
-    result.messages.push("postedAt is required");
-  } else if (Number.isNaN(new Date(row.postedAt).getTime())) {
+  if (row.postedAt.trim() && Number.isNaN(new Date(row.postedAt).getTime())) {
     result.postedAt = "postedAt must be a valid date";
     result.messages.push("postedAt must be a valid date");
   }
 
-  const hook = row.hook.trim();
-  if (!hook) {
-    result.hook = "hook is required";
-    result.messages.push("hook is required");
-  } else if (hook.length < 5) {
+  if (row.hook.trim() && row.hook.trim().length < 5) {
     result.hook = "hook must be at least 5 characters";
     result.messages.push("hook must be at least 5 characters");
   }
@@ -200,8 +194,8 @@ export function ImportUrlsModal({ open, clientId, onOpenChange, onImported }: Im
           clientId,
           rows: importableRows.map((row) => ({
             postUrl: row.postUrl,
-            postedAt: new Date(row.postedAt).toISOString(),
-            hook: row.hook.trim(),
+            postedAt: row.postedAt.trim() ? new Date(row.postedAt).toISOString() : undefined,
+            hook: row.hook.trim() || undefined,
             theme: row.theme.trim() || "General",
             format: row.format,
             body: row.body.trim() || undefined
@@ -351,7 +345,7 @@ export function ImportUrlsModal({ open, clientId, onOpenChange, onImported }: Im
                           <Input
                             value={row.hook}
                             onChange={(event) => updateRow(index, { hook: event.target.value })}
-                            placeholder="Required hook"
+                            placeholder="Optional hook (required later for READY)"
                             className={validation?.hook ? "border-[#df551f8c]" : ""}
                           />
                           {validation?.hook ? <p className="mt-1 text-[11px] text-[#ffb499]">{validation.hook}</p> : null}

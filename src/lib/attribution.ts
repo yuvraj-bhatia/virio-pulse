@@ -5,7 +5,9 @@ export type AttributionOptions = {
   useSoftAttribution: boolean;
 };
 
-export type AttributionPost = Pick<ContentPost, "id" | "executiveId" | "postedAt" | "hook" | "theme">;
+export type AttributionPost = Pick<ContentPost, "id" | "executiveId" | "hook" | "theme"> & {
+  postedAt: Date;
+};
 
 export type AttributionInbound = Pick<
   InboundSignal,
@@ -186,12 +188,38 @@ export function resolveMeetingAttributions(
 }
 
 export function resolveOpportunityAttributions(
-  opportunities: Pick<Opportunity, "id" | "meetingId">[],
-  meetingAttributions: Map<string, ResolvedMeetingAttribution>
+  opportunities: Pick<Opportunity, "id" | "meetingId" | "postId" | "inboundSignalId">[],
+  meetingAttributions: Map<string, ResolvedMeetingAttribution>,
+  inboundAttributions: Map<string, ResolvedInboundAttribution> = new Map()
 ): Map<string, ResolvedOpportunityAttribution> {
   const resolved = new Map<string, ResolvedOpportunityAttribution>();
 
   for (const opportunity of opportunities) {
+    if (opportunity.inboundSignalId) {
+      const inbound = inboundAttributions.get(opportunity.inboundSignalId);
+      if (inbound) {
+        resolved.set(opportunity.id, {
+          opportunityId: opportunity.id,
+          meetingId: opportunity.meetingId,
+          attributedPostId: inbound.attributedPostId,
+          confidence: inbound.confidence,
+          isDirect: inbound.isDirect
+        });
+        continue;
+      }
+    }
+
+    if (opportunity.postId) {
+      resolved.set(opportunity.id, {
+        opportunityId: opportunity.id,
+        meetingId: opportunity.meetingId,
+        attributedPostId: opportunity.postId,
+        confidence: AttributionConfidence.HIGH,
+        isDirect: true
+      });
+      continue;
+    }
+
     if (!opportunity.meetingId) {
       resolved.set(opportunity.id, {
         opportunityId: opportunity.id,

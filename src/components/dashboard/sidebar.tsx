@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BarChart3, GaugeCircle, Lightbulb, PanelLeft, Settings, Workflow } from "lucide-react";
+import { Activity, BarChart3, ClipboardList, GaugeCircle, Lightbulb, PanelLeft, Settings, Workflow } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/attribution", label: "Attribution", icon: BarChart3 },
   { href: "/pipeline", label: "Pipeline", icon: Workflow },
   { href: "/insights", label: "Insights", icon: Lightbulb },
+  { href: "/demo", label: "Demo", icon: ClipboardList },
   { href: "/settings", label: "Settings", icon: Settings }
 ] as const;
 

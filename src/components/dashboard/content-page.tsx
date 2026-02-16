@@ -1,6 +1,6 @@
 "use client";
 
-import { CtaType, InboundSource, PostFormat } from "@prisma/client";
+import { CtaType, InboundSource, OpportunityStage, PostFormat, PostStatus } from "@prisma/client";
 import { Link2, Loader2, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -36,6 +36,7 @@ type ContentPageProps = {
   range: "7" | "30" | "90";
   executives: ExecutiveOption[];
   initialDataMode: "sample" | "real";
+  initialOpenAction?: "import-urls" | "inbound" | "draft" | null;
 };
 
 type DraftForm = {
@@ -76,9 +77,12 @@ type DetailPayload = {
   }>;
   opportunities: Array<{
     id: string;
+    name?: string;
     stage: string;
     amount: number;
     createdAt: string;
+    inboundSignalId?: string | null;
+    postId?: string | null;
   }>;
 };
 
@@ -102,6 +106,41 @@ type ImportPreviewRow = ImportPayloadRow & {
 type ToastState = {
   message: string;
   tone: "success" | "error";
+};
+
+type PostForm = {
+  hook: string;
+  postedAt: string;
+  theme: string;
+  format: PostFormat;
+  body: string;
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  postUrl: string;
+  status: PostStatus;
+};
+
+type OpportunityForm = {
+  name: string;
+  amount: string;
+  stage: OpportunityStage;
+  createdAt: string;
+  closeDate: string;
+  postId: string;
+  inboundSignalId: string;
+};
+
+type SignalListItem = {
+  id: string;
+  source: string;
+  createdAt: string;
+  personName: string | null;
+  company: string | null;
+  entryPointUrl: string | null;
+  postId: string | null;
+  postHook: string | null;
 };
 
 const draftSchema = z.object({
@@ -344,7 +383,13 @@ function parseImportCsv(content: string): {
   return { rows, preview, errors };
 }
 
-export function ContentPage({ clientId, range, executives, initialDataMode }: ContentPageProps): JSX.Element {
+export function ContentPage({
+  clientId,
+  range,
+  executives,
+  initialDataMode,
+  initialOpenAction
+}: ContentPageProps): JSX.Element {
   const router = useRouter();
 
   const [theme, setTheme] = useState<string>("all");
@@ -354,10 +399,13 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
   const [search, setSearch] = useState("");
 
   const [posts, setPosts] = useState<ContentListItem[]>([]);
+  const [totalClientPosts, setTotalClientPosts] = useState(0);
   const [loading, setLoading] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DetailPayload | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [savingPost, setSavingPost] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
 
   const [draftOpen, setDraftOpen] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -396,6 +444,33 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
   });
 
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [signals, setSignals] = useState<SignalListItem[]>([]);
+  const [loadingSignals, setLoadingSignals] = useState(false);
+  const [opportunityOpen, setOpportunityOpen] = useState(false);
+  const [savingOpportunity, setSavingOpportunity] = useState(false);
+  const [opportunityError, setOpportunityError] = useState<string | null>(null);
+  const [opportunityForm, setOpportunityForm] = useState<OpportunityForm>({
+    name: "",
+    amount: "",
+    stage: OpportunityStage.qualified,
+    createdAt: formatDateTimeLocal(new Date()),
+    closeDate: "",
+    postId: "",
+    inboundSignalId: ""
+  });
+  const [postForm, setPostForm] = useState<PostForm>({
+    hook: "",
+    postedAt: "",
+    theme: "General",
+    format: PostFormat.post,
+    body: "",
+    impressions: 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    postUrl: "",
+    status: PostStatus.needs_details
+  });
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -409,16 +484,32 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
     return params.toString();
   }, [clientId, range, theme, format, status, executiveId, search]);
 
-  const fetchPosts = useCallback(async (): Promise<void> => {
+  const fetchPosts = useCallback(async (): Promise<{ visiblePosts: number; totalPosts: number }> => {
     setLoading(true);
     try {
       const response = await fetch(`/api/content/posts?${queryString}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to load posts");
-      const payload = (await response.json()) as { data: ContentListItem[] };
+      const payload = (await response.json()) as {
+        data: ContentListItem[];
+        meta?: {
+          totalClientPosts?: number;
+        };
+      };
       setPosts(payload.data);
+      const totalPosts = payload.meta?.totalClientPosts ?? payload.data.length;
+      setTotalClientPosts(totalPosts);
+      return {
+        visiblePosts: payload.data.length,
+        totalPosts
+      };
     } catch (error) {
       console.error(error);
       setPosts([]);
+      setTotalClientPosts(0);
+      return {
+        visiblePosts: 0,
+        totalPosts: 0
+      };
     } finally {
       setLoading(false);
     }
@@ -439,9 +530,25 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
     }
   }, []);
 
+  const fetchSignals = useCallback(async (): Promise<void> => {
+    setLoadingSignals(true);
+    try {
+      const response = await fetch(`/api/inbound-signals?clientId=${clientId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to load signals");
+      const payload = (await response.json()) as { data: SignalListItem[] };
+      setSignals(payload.data);
+    } catch (error) {
+      console.error(error);
+      setSignals([]);
+    } finally {
+      setLoadingSignals(false);
+    }
+  }, [clientId]);
+
   useEffect(() => {
     void fetchPosts();
-  }, [fetchPosts]);
+    void fetchSignals();
+  }, [fetchPosts, fetchSignals]);
 
   useEffect(() => {
     if (!selectedPostId) {
@@ -457,6 +564,52 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
     const timeout = window.setTimeout(() => setToast(null), 3200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    if (!initialOpenAction) return;
+    if (initialOpenAction === "import-urls") setImportUrlsOpen(true);
+    if (initialOpenAction === "inbound") setInboundOpen(true);
+    if (initialOpenAction === "draft") setDraftOpen(true);
+  }, [initialOpenAction]);
+
+  useEffect(() => {
+    if (!detail) return;
+    setPostForm({
+      hook: detail.post.hook ?? "",
+      postedAt: detail.post.postedAt ? formatDateTimeLocal(new Date(detail.post.postedAt)) : "",
+      theme: detail.post.theme ?? "General",
+      format: detail.post.format,
+      body: detail.post.body ?? "",
+      impressions: detail.post.impressions,
+      likes: detail.post.likes,
+      comments: detail.post.comments,
+      shares: detail.post.shares,
+      postUrl: detail.post.postUrl ?? "",
+      status: detail.post.status
+    });
+  }, [detail]);
+
+  const jumpToNinetyDayRange = useCallback((): void => {
+    const params = new URLSearchParams(queryString);
+    params.set("range", "90");
+    router.push(`/content?${params.toString()}`);
+  }, [queryString, router]);
+
+  const maybeExpandRangeAfterImport = useCallback(
+    (visiblePosts: number, totalPosts: number): boolean => {
+      if (range === "90") {
+        return false;
+      }
+
+      if (visiblePosts === 0 && totalPosts > 0) {
+        jumpToNinetyDayRange();
+        return true;
+      }
+
+      return false;
+    },
+    [jumpToNinetyDayRange, range]
+  );
 
   const onDraftSubmit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -575,10 +728,17 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
       const imported = payload.data.imported;
       setImportOpen(false);
       resetImportState();
-      await fetchPosts();
+      const next = await fetchPosts();
       setDataMode("real");
       router.refresh();
-      setToast({ message: `Imported ${imported} posts`, tone: "success" });
+      if (maybeExpandRangeAfterImport(next.visiblePosts, next.totalPosts)) {
+        setToast({
+          message: `Imported ${imported} posts. Switched to Last 90 days to show imported data.`,
+          tone: "success"
+        });
+      } else {
+        setToast({ message: `Imported ${imported} posts`, tone: "success" });
+      }
     } catch (error) {
       console.error(error);
       setImportError(error instanceof Error ? error.message : "Import failed");
@@ -590,18 +750,25 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
 
   const onUrlsImported = useCallback(
     async (result: ImportUrlsResult): Promise<void> => {
-      await fetchPosts();
+      const next = await fetchPosts();
       setDataMode("real");
       router.refresh();
 
       const toastMessage =
         result.skippedDuplicates > 0
-          ? `Imported ${result.imported} posts. Skipped ${result.skippedDuplicates} duplicates`
-          : `Imported ${result.imported} posts`;
+          ? `Imported ${result.imported} posts (${result.needsDetails ?? 0} need details). Skipped ${result.skippedDuplicates} duplicates`
+          : `Imported ${result.imported} posts (${result.needsDetails ?? 0} need details)`;
 
-      setToast({ message: toastMessage, tone: "success" });
+      if (maybeExpandRangeAfterImport(next.visiblePosts, next.totalPosts)) {
+        setToast({
+          message: `${toastMessage}. Switched to Last 90 days to show imported data.`,
+          tone: "success"
+        });
+      } else {
+        setToast({ message: toastMessage, tone: "success" });
+      }
     },
-    [fetchPosts, router]
+    [fetchPosts, maybeExpandRangeAfterImport, router]
   );
 
   const onInboundSubmit = async (event: React.FormEvent): Promise<void> => {
@@ -659,6 +826,7 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
         await fetchPostDetail(selectedPostId);
       }
       await fetchPosts();
+      await fetchSignals();
       router.refresh();
       setToast({ message: "Inbound signal added", tone: "success" });
     } catch (error) {
@@ -667,6 +835,132 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
       setToast({ message: "Failed to add inbound signal", tone: "error" });
     } finally {
       setSavingInbound(false);
+    }
+  };
+
+  const onPostSave = async (event: React.FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (!selectedPostId) return;
+
+    setPostError(null);
+    setSavingPost(true);
+
+    try {
+      const response = await fetch(`/api/content/posts/${selectedPostId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          clientId,
+          hook: postForm.hook.trim() || null,
+          postedAt: postForm.postedAt ? new Date(postForm.postedAt).toISOString() : null,
+          theme: postForm.theme.trim() || "General",
+          format: postForm.format,
+          body: postForm.body.trim() || null,
+          impressions: Number(postForm.impressions) || 0,
+          likes: Number(postForm.likes) || 0,
+          comments: Number(postForm.comments) || 0,
+          shares: Number(postForm.shares) || 0,
+          postUrl: postForm.postUrl.trim() || null,
+          status: postForm.status
+        })
+      });
+
+      const payload = (await response.json()) as {
+        data?: unknown;
+        meta?: { becameReady?: boolean };
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to save post");
+      }
+
+      await fetchPosts();
+      await fetchPostDetail(selectedPostId);
+      router.refresh();
+      if (payload.meta?.becameReady) {
+        setToast({ message: "Post ready for attribution", tone: "success" });
+      } else {
+        setToast({ message: "Post updated", tone: "success" });
+      }
+    } catch (error) {
+      console.error(error);
+      setPostError(error instanceof Error ? error.message : "Failed to save post");
+      setToast({ message: "Failed to update post", tone: "error" });
+    } finally {
+      setSavingPost(false);
+    }
+  };
+
+  const openCreateOpportunity = (prefill?: { postId?: string | null; inboundSignalId?: string | null }): void => {
+    setOpportunityError(null);
+    setOpportunityForm({
+      name: "",
+      amount: "",
+      stage: OpportunityStage.qualified,
+      createdAt: formatDateTimeLocal(new Date()),
+      closeDate: "",
+      postId: prefill?.postId ?? selectedPostId ?? "",
+      inboundSignalId: prefill?.inboundSignalId ?? ""
+    });
+    setOpportunityOpen(true);
+  };
+
+  const onOpportunitySubmit = async (event: React.FormEvent): Promise<void> => {
+    event.preventDefault();
+    setOpportunityError(null);
+
+    const amount = Number.parseInt(opportunityForm.amount, 10);
+    if (Number.isNaN(amount) || amount < 0) {
+      setOpportunityError("Amount must be a non-negative whole number");
+      return;
+    }
+
+    const createdAt = new Date(opportunityForm.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      setOpportunityError("Created at must be a valid date");
+      return;
+    }
+
+    setSavingOpportunity(true);
+    try {
+      const response = await fetch("/api/opportunities", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          clientId,
+          name: opportunityForm.name.trim() || "New opportunity",
+          amount,
+          stage: opportunityForm.stage,
+          createdAt: createdAt.toISOString(),
+          closeDate: opportunityForm.closeDate ? new Date(opportunityForm.closeDate).toISOString() : null,
+          postId: opportunityForm.postId || null,
+          inboundSignalId: opportunityForm.inboundSignalId || null
+        })
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to create opportunity");
+      }
+
+      setOpportunityOpen(false);
+      if (selectedPostId) {
+        await fetchPostDetail(selectedPostId);
+      }
+      await fetchPosts();
+      router.refresh();
+      setToast({ message: "Opportunity created", tone: "success" });
+    } catch (error) {
+      console.error(error);
+      setOpportunityError(error instanceof Error ? error.message : "Failed to create opportunity");
+      setToast({ message: "Failed to create opportunity", tone: "error" });
+    } finally {
+      setSavingOpportunity(false);
     }
   };
 
@@ -748,6 +1042,8 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
             <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="needs_details">needs_details</SelectItem>
+              <SelectItem value="ready">ready</SelectItem>
               <SelectItem value="draft">draft</SelectItem>
               <SelectItem value="scheduled">scheduled</SelectItem>
               <SelectItem value="posted">posted</SelectItem>
@@ -779,16 +1075,28 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
             Loading content...
           </div>
         ) : posts.length === 0 ? (
-          <EmptyState
-            title="No posts yet"
-            description="Import LinkedIn post URLs to start building a real attribution workspace."
-            action={(
-              <Button size="sm" onClick={() => setImportUrlsOpen(true)}>
-                <Link2 className="mr-2 h-4 w-4" />
-                Import URLs
-              </Button>
-            )}
-          />
+          totalClientPosts > 0 ? (
+            <EmptyState
+              title="No posts in selected date range"
+              description={`This client has ${totalClientPosts} post${totalClientPosts === 1 ? "" : "s"}, but none in the selected Last ${range} days.`}
+              action={(
+                <Button size="sm" onClick={jumpToNinetyDayRange}>
+                  Show Last 90 days
+                </Button>
+              )}
+            />
+          ) : (
+            <EmptyState
+              title="No posts yet"
+              description="Import LinkedIn post URLs to start building a real attribution workspace."
+              action={(
+                <Button size="sm" onClick={() => setImportUrlsOpen(true)}>
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Import URLs
+                </Button>
+              )}
+            />
+          )
         ) : (
           <Table>
             <TableHeader>
@@ -808,12 +1116,83 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
                   <TableCell><Badge variant="secondary">{post.theme}</Badge></TableCell>
                   <TableCell className="capitalize text-muted-foreground">{post.format}</TableCell>
                   <TableCell>
-                    <Badge variant={post.status === "posted" ? "success" : post.status === "draft" ? "outline" : "default"}>
+                    <Badge
+                      variant={
+                        post.status === "posted"
+                          ? "success"
+                          : post.status === "needs_details"
+                            ? "destructive"
+                            : post.status === "ready"
+                              ? "default"
+                              : "outline"
+                      }
+                    >
                       {post.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{new Date(post.postedAt).toLocaleDateString("en-US")}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {post.postedAt ? new Date(post.postedAt).toLocaleDateString("en-US") : "Needs date"}
+                  </TableCell>
                   <TableCell>{post.impressions.toLocaleString("en-US")}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      <div className="glass-card rounded-xl p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-[#f3dcaf]">Recent inbound signals</h4>
+          <Button size="sm" variant="outline" onClick={() => setInboundOpen(true)}>
+            Add inbound signal
+          </Button>
+        </div>
+        {loadingSignals ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading signals...
+          </div>
+        ) : signals.length === 0 ? (
+          <EmptyState title="No inbound signals yet" description="Add your first inbound signal to power attribution." />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Source</TableHead>
+                <TableHead>Person</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Post Context</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {signals.slice(0, 10).map((signal) => (
+                <TableRow key={signal.id}>
+                  <TableCell className="capitalize">{signal.source.replaceAll("_", " ")}</TableCell>
+                  <TableCell>{signal.personName ?? "Unknown"}</TableCell>
+                  <TableCell>{signal.company ?? "Unknown"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(signal.createdAt).toLocaleDateString("en-US")}
+                  </TableCell>
+                  <TableCell className="max-w-[280px]">
+                    <p className="line-clamp-2 text-sm text-muted-foreground">{signal.postHook ?? "Unlinked signal"}</p>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        openCreateOpportunity({
+                          postId: signal.postId,
+                          inboundSignalId: signal.id
+                        })
+                      }
+                    >
+                      Convert
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -834,59 +1213,240 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
               Loading post details...
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="space-y-3 rounded-lg border border-border/60 bg-[#0f1218cc] p-4">
-                <h4 className="font-semibold">Post Summary</h4>
-                <p className="text-sm text-foreground">{detail.post.hook}</p>
-                <p className="text-sm text-muted-foreground">{detail.post.body}</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <p>Impressions: {detail.post.impressions.toLocaleString("en-US")}</p>
-                  <p>Likes: {detail.post.likes.toLocaleString("en-US")}</p>
-                  <p>Comments: {detail.post.comments.toLocaleString("en-US")}</p>
-                  <p>Shares: {detail.post.shares.toLocaleString("en-US")}</p>
+            <div className="space-y-4">
+              <form className="grid grid-cols-1 gap-4 lg:grid-cols-2" onSubmit={(event) => void onPostSave(event)}>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-[#0f1218cc] p-4 lg:col-span-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-semibold">Post Details</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openCreateOpportunity({ postId: detail.post.id })}
+                    >
+                      Create opportunity
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Hook</Label>
+                      <Input
+                        value={postForm.hook}
+                        placeholder="Add a clear hook"
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            hook: event.target.value
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Posted at</Label>
+                      <Input
+                        type="datetime-local"
+                        value={postForm.postedAt}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            postedAt: event.target.value
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Theme</Label>
+                      <Input
+                        value={postForm.theme}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            theme: event.target.value
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Format</Label>
+                      <Select
+                        value={postForm.format}
+                        onValueChange={(value) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            format: value as PostFormat
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={PostFormat.post}>Post</SelectItem>
+                          <SelectItem value={PostFormat.thread}>Thread</SelectItem>
+                          <SelectItem value={PostFormat.carousel}>Carousel</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label>Post URL</Label>
+                      <Input
+                        placeholder="https://www.linkedin.com/..."
+                        value={postForm.postUrl}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            postUrl: event.target.value
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label>Body</Label>
+                      <Textarea
+                        value={postForm.body}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            body: event.target.value
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Impressions</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={postForm.impressions}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            impressions: Number(event.target.value || 0)
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Likes</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={postForm.likes}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            likes: Number(event.target.value || 0)
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Comments</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={postForm.comments}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            comments: Number(event.target.value || 0)
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Shares</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={postForm.shares}
+                        onChange={(event) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            shares: Number(event.target.value || 0)
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <Label>Status</Label>
+                      <Select
+                        value={postForm.status}
+                        onValueChange={(value) =>
+                          setPostForm((current) => ({
+                            ...current,
+                            status: value as PostStatus
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={PostStatus.needs_details}>needs_details</SelectItem>
+                          <SelectItem value={PostStatus.ready}>ready</SelectItem>
+                          <SelectItem value={PostStatus.draft}>draft</SelectItem>
+                          <SelectItem value={PostStatus.scheduled}>scheduled</SelectItem>
+                          <SelectItem value={PostStatus.posted}>posted</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {postError ? <p className="text-sm text-[#ffb499]">{postError}</p> : null}
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={savingPost}>
+                      {savingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Save details
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              </form>
 
-              <div className="space-y-3 rounded-lg border border-border/60 bg-[#0f1218cc] p-4">
-                <h4 className="font-semibold">Attributed Outcomes</h4>
-                <p className="text-sm text-muted-foreground">Inbound signals: {detail.inbounds.length}</p>
-                <p className="text-sm text-muted-foreground">Meetings: {detail.meetings.length}</p>
-                <p className="text-sm text-muted-foreground">
-                  Opportunities: {detail.opportunities.length} (
-                  {toCurrency(detail.opportunities.reduce((sum, opportunity) => sum + opportunity.amount, 0))})
-                </p>
-              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-border/60 bg-[#0f1218cc] p-4">
+                  <h4 className="mb-2 font-semibold">Inbound signals</h4>
+                  {detail.inbounds.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No inbound signals linked to this post.</p>
+                  ) : (
+                    <ul className="space-y-2 text-sm">
+                      {detail.inbounds.map((inbound) => (
+                        <li key={inbound.id} className="flex items-center justify-between gap-2">
+                          <div>
+                            <span className="text-foreground">{inbound.personName ?? "Unknown"}</span>
+                            <span className="text-muted-foreground">
+                              {" "}
+                              · {inbound.company ?? "Unknown company"} · {inbound.source}
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openCreateOpportunity({ postId: detail.post.id, inboundSignalId: inbound.id })}
+                          >
+                            Convert
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
-              <div className="rounded-lg border border-border/60 bg-[#0f1218cc] p-4">
-                <h4 className="mb-2 font-semibold">Inbound signals</h4>
-                {detail.inbounds.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No inbound signals linked to this post.</p>
-                ) : (
-                  <ul className="space-y-2 text-sm">
-                    {detail.inbounds.map((inbound) => (
-                      <li key={inbound.id}>
-                        <span className="text-foreground">{inbound.personName ?? "Unknown"}</span>
-                        <span className="text-muted-foreground"> · {inbound.company ?? "Unknown company"} · {inbound.source}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="rounded-lg border border-border/60 bg-[#0f1218cc] p-4">
-                <h4 className="mb-2 font-semibold">Opportunities</h4>
-                {detail.opportunities.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No opportunities linked yet.</p>
-                ) : (
-                  <ul className="space-y-2 text-sm">
-                    {detail.opportunities.map((opportunity) => (
-                      <li key={opportunity.id}>
-                        <span className="capitalize text-foreground">{opportunity.stage.replaceAll("_", " ")}</span>
-                        <span className="text-muted-foreground"> · {toCurrency(opportunity.amount)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <div className="rounded-lg border border-border/60 bg-[#0f1218cc] p-4">
+                  <h4 className="mb-2 font-semibold">Opportunities</h4>
+                  {detail.opportunities.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No opportunities linked yet.</p>
+                  ) : (
+                    <ul className="space-y-2 text-sm">
+                      {detail.opportunities.map((opportunity) => (
+                        <li key={opportunity.id}>
+                          <span className="capitalize text-foreground">{opportunity.stage.replaceAll("_", " ")}</span>
+                          <span className="text-muted-foreground"> · {toCurrency(opportunity.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1136,13 +1696,13 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
                   }
                 >
                   <SelectTrigger><SelectValue placeholder="No linked post" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No linked post</SelectItem>
-                    {posts.map((post) => (
-                      <SelectItem key={post.id} value={post.id}>{post.hook}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectContent>
+                      <SelectItem value="none">No linked post</SelectItem>
+                      {posts.map((post) => (
+                        <SelectItem key={post.id} value={post.id}>{post.hook ?? post.postUrl ?? post.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
               </div>
 
               <div className="space-y-1">
@@ -1203,6 +1763,157 @@ export function ContentPage({ clientId, range, executives, initialDataMode }: Co
               <Button type="submit" disabled={savingInbound}>
                 {savingInbound ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Save inbound
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={opportunityOpen} onOpenChange={setOpportunityOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create opportunity</DialogTitle>
+            <DialogDescription>
+              Add a pipeline opportunity and optionally link it to a post or inbound signal.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={(event) => void onOpportunitySubmit(event)}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-1 md:col-span-2">
+                <Label>Name</Label>
+                <Input
+                  value={opportunityForm.name}
+                  onChange={(event) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      name: event.target.value
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Amount (USD)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={opportunityForm.amount}
+                  onChange={(event) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      amount: event.target.value
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Stage</Label>
+                <Select
+                  value={opportunityForm.stage}
+                  onValueChange={(value) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      stage: value as OpportunityStage
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(OpportunityStage).map((stage) => (
+                      <SelectItem key={stage} value={stage}>
+                        {stage.replaceAll("_", " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Created at</Label>
+                <Input
+                  type="datetime-local"
+                  value={opportunityForm.createdAt}
+                  onChange={(event) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      createdAt: event.target.value
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Close date (optional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={opportunityForm.closeDate}
+                  onChange={(event) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      closeDate: event.target.value
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Linked post (optional)</Label>
+                <Select
+                  value={opportunityForm.postId || "none"}
+                  onValueChange={(value) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      postId: value === "none" ? "" : value
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No linked post</SelectItem>
+                    {posts.map((post) => (
+                      <SelectItem key={post.id} value={post.id}>
+                        {post.hook ?? post.postUrl ?? post.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Linked inbound signal (optional)</Label>
+                <Select
+                  value={opportunityForm.inboundSignalId || "none"}
+                  onValueChange={(value) =>
+                    setOpportunityForm((current) => ({
+                      ...current,
+                      inboundSignalId: value === "none" ? "" : value
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No linked inbound signal</SelectItem>
+                    {signals.map((signal) => (
+                      <SelectItem key={signal.id} value={signal.id}>
+                        {(signal.personName ?? "Unknown")} · {signal.source.replaceAll("_", " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {opportunityError ? <p className="text-sm text-[#ffb499]">{opportunityError}</p> : null}
+
+            <DialogFooter>
+              <Button variant="secondary" type="button" onClick={() => setOpportunityOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingOpportunity}>
+                {savingOpportunity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Create opportunity
               </Button>
             </DialogFooter>
           </form>

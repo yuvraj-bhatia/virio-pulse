@@ -30,18 +30,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const range = parseDateRange(request.nextUrl.searchParams.get("range"));
     const { startDate, endDate } = getDateRangeFromPreset(range);
 
-    const data = await getContentData(
-      { clientId, startDate, endDate },
-      {
-        executiveId: request.nextUrl.searchParams.get("executiveId") ?? undefined,
-        theme: request.nextUrl.searchParams.get("theme") ?? undefined,
-        format: (request.nextUrl.searchParams.get("format") as PostFormat | null) ?? undefined,
-        status: (request.nextUrl.searchParams.get("status") as PostStatus | null) ?? undefined,
-        search: request.nextUrl.searchParams.get("search") ?? undefined
-      }
-    );
+    const [data, totalClientPosts] = await Promise.all([
+      getContentData(
+        { clientId, startDate, endDate },
+        {
+          executiveId: request.nextUrl.searchParams.get("executiveId") ?? undefined,
+          theme: request.nextUrl.searchParams.get("theme") ?? undefined,
+          format: (request.nextUrl.searchParams.get("format") as PostFormat | null) ?? undefined,
+          status: (request.nextUrl.searchParams.get("status") as PostStatus | null) ?? undefined,
+          search: request.nextUrl.searchParams.get("search") ?? undefined
+        }
+      ),
+      prisma.contentPost.count({
+        where: { clientId }
+      })
+    ]);
 
-    return NextResponse.json({ data });
+    return NextResponse.json({
+      data,
+      meta: {
+        totalClientPosts
+      }
+    });
   } catch (error) {
     console.error(error);
     return serverError();
