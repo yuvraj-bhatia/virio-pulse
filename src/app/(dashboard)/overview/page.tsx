@@ -54,7 +54,7 @@ export default async function OverviewPage({
           data={chartData}
           dataKey="revenueWon"
           color="#dcb268"
-          yLabel={(value) => `$${Math.round(value / 1000)}k`}
+          yAxisFormat="currencyK"
         />
         <TimeSeriesChart
           title="Meetings Influenced Over Time"

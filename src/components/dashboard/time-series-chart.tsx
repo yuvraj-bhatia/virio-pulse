@@ -34,10 +34,17 @@ type SeriesProps = {
   data: Array<Record<string, number | string>>;
   dataKey: string;
   color: string;
-  yLabel?: (value: number) => string;
+  yAxisFormat?: "number" | "currencyK";
 };
 
-export function TimeSeriesChart({ title, data, dataKey, color, yLabel }: SeriesProps): JSX.Element {
+export function TimeSeriesChart({ title, data, dataKey, color, yAxisFormat = "number" }: SeriesProps): JSX.Element {
+  const yTickFormatter = (value: number): string => {
+    if (yAxisFormat === "currencyK") {
+      return `$${Math.round(value / 1000)}k`;
+    }
+    return value.toLocaleString("en-US");
+  };
+
   return (
     <Card className="section-glow">
       <CardHeader>
@@ -61,7 +68,7 @@ export function TimeSeriesChart({ title, data, dataKey, color, yLabel }: SeriesP
             />
             <YAxis
               tick={{ fill: "#a3a5ad", fontSize: 11 }}
-              tickFormatter={yLabel}
+              tickFormatter={yTickFormatter}
               stroke="rgba(220,178,104,0.25)"
               width={64}
             />
